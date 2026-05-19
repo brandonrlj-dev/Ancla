@@ -1,26 +1,346 @@
 @import "tailwindcss";
 
+/* ============================================================
+   ANCLA — Design System CSS Variables
+   ============================================================ */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* --- Color Palette --- */
+
+  /* Sage — muted forest green (calm, validation) */
+  --color-sage-900: #2d3d2d;
+  --color-sage-700: #4a6148;
+  --color-sage-500: #6b7f5e;
+  --color-sage-400: #8fa880;
+  --color-sage-300: #adc29d;
+  --color-sage-200: #cddbc5;
+  --color-sage-100: #e5efdf;
+  --color-sage-50:  #f0f4ed;
+
+  /* Calm — soft sky blue (neutral, informational) */
+  --color-calm-900: #1e3147;
+  --color-calm-700: #3d5e81;
+  --color-calm-500: #5b81a8;
+  --color-calm-400: #7a9cbf;
+  --color-calm-300: #9ab7d5;
+  --color-calm-200: #c0d4e8;
+  --color-calm-100: #dceaf4;
+  --color-calm-50:  #eef3f8;
+
+  /* Sand — warm caramel/beige (medium risk, warmth) */
+  --color-sand-900: #5c3d1a;
+  --color-sand-700: #9b6a38;
+  --color-sand-500: #c4a882;
+  --color-sand-400: #d4c0a0;
+  --color-sand-300: #e0d0b8;
+  --color-sand-200: #ede2d0;
+  --color-sand-100: #f5ede0;
+  --color-sand-50:  #faf5ee;
+
+  /* Terra — terracotta (high risk, alert) */
+  --color-terra-900: #5a2410;
+  --color-terra-700: #9e4a28;
+  --color-terra-500: #bf6b4a;
+  --color-terra-400: #d08870;
+  --color-terra-300: #e0a896;
+  --color-terra-200: #eec8bc;
+  --color-terra-100: #f7e0d9;
+  --color-terra-50:  #fdf0eb;
+
+  /* Peach — soft coral-pink (validation, empathy) */
+  --color-peach-900: #5a2830;
+  --color-peach-700: #a85060;
+  --color-peach-500: #e08090;
+  --color-peach-400: #e8a0a8;
+  --color-peach-300: #f0bcc2;
+  --color-peach-200: #f7d5d9;
+  --color-peach-100: #fbe8ea;
+  --color-peach-50:  #fef3f4;
+
+  /* Night — deep navy for PC portal */
+  --color-night-900: #1a242f;
+  --color-night-800: #232e3c;
+  --color-night-700: #2c3e50;
+  --color-night-600: #354b5e;
+  --color-night-500: #3d5972;
+  --color-night-400: #4e7090;
+  --color-night-300: #6889a8;
+  --color-night-200: #8aaac4;
+  --color-night-100: #b8cfe0;
+  --color-night-50:  #dce8f0;
+
+  /* Neutral */
+  --color-white: #ffffff;
+  --color-off-white: #faf9f7;
+  --color-gray-50: #f8f7f5;
+  --color-gray-100: #f0ede8;
+  --color-gray-200: #e2ddd6;
+  --color-gray-300: #c8c1b8;
+  --color-gray-400: #a89e94;
+  --color-gray-500: #8a8078;
+  --color-gray-600: #6b6258;
+  --color-gray-700: #4e473e;
+  --color-gray-800: #332e28;
+  --color-gray-900: #1a1714;
+
+  /* Semantic aliases */
+  --color-background: var(--color-off-white);
+  --color-surface: var(--color-white);
+  --color-text-primary: var(--color-gray-800);
+  --color-text-secondary: var(--color-gray-500);
+  --color-text-tertiary: var(--color-gray-400);
+  --color-border: var(--color-gray-200);
+  --color-border-subtle: var(--color-gray-100);
+
+  /* Risk gradient stops (0=sage, 33=calm, 66=sand, 100=terra) */
+  --color-risk-low: var(--color-sage-500);
+  --color-risk-mid-low: var(--color-calm-500);
+  --color-risk-mid: var(--color-sand-500);
+  --color-risk-high: var(--color-terra-500);
+
+  /* Bridge wire colors */
+  --color-wire-blue: var(--color-calm-500);
+  --color-wire-green: var(--color-sage-500);
+  --color-wire-terra: var(--color-terra-500);
+
+  /* --- Typography --- */
+  --font-display: 'Lora', Georgia, serif;
+  --font-body: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Courier New', monospace;
+
+  /* Font sizes */
+  --text-xs:   0.75rem;   /* 12px */
+  --text-sm:   0.875rem;  /* 14px */
+  --text-base: 1rem;      /* 16px */
+  --text-lg:   1.125rem;  /* 18px */
+  --text-xl:   1.25rem;   /* 20px */
+  --text-2xl:  1.5rem;    /* 24px */
+  --text-3xl:  1.875rem;  /* 30px */
+  --text-4xl:  2.25rem;   /* 36px */
+  --text-5xl:  3rem;      /* 48px */
+  --text-6xl:  3.75rem;   /* 60px */
+
+  /* Font weights */
+  --weight-light:   300;
+  --weight-regular: 400;
+  --weight-medium:  500;
+  --weight-semibold: 600;
+  --weight-bold:    700;
+
+  /* Line heights */
+  --leading-tight:  1.25;
+  --leading-snug:   1.375;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.625;
+  --leading-loose:  2;
+
+  /* --- Spacing --- */
+  --space-1:  0.25rem;
+  --space-2:  0.5rem;
+  --space-3:  0.75rem;
+  --space-4:  1rem;
+  --space-5:  1.25rem;
+  --space-6:  1.5rem;
+  --space-8:  2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --space-20: 5rem;
+  --space-24: 6rem;
+
+  /* --- Border Radius --- */
+  --radius-sm:  0.25rem;
+  --radius-md:  0.5rem;
+  --radius-lg:  0.75rem;
+  --radius-xl:  1rem;
+  --radius-2xl: 1.5rem;
+  --radius-3xl: 2rem;
+  --radius-full: 9999px;
+
+  /* --- Shadows --- */
+  --shadow-sm:  0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md:  0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04);
+  --shadow-lg:  0 8px 24px rgba(0,0,0,0.10), 0 4px 8px rgba(0,0,0,0.05);
+  --shadow-xl:  0 16px 48px rgba(0,0,0,0.12), 0 8px 16px rgba(0,0,0,0.06);
+  --shadow-sage: 0 8px 32px rgba(107,127,94,0.20);
+  --shadow-calm: 0 8px 32px rgba(91,129,168,0.20);
+  --shadow-terra: 0 8px 32px rgba(191,107,74,0.20);
+
+  /* --- Transitions --- */
+  --transition-fast:   150ms ease;
+  --transition-base:   250ms ease;
+  --transition-slow:   400ms ease;
+  --transition-spring: 600ms cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* --- Z-index layers --- */
+  --z-base:    0;
+  --z-raised:  10;
+  --z-overlay: 100;
+  --z-modal:   200;
+  --z-jumper:  300;
+  --z-toast:   400;
+
+  /* --- Breakpoints (reference only — use in JS) --- */
+  --bp-mobile: 380px;
+  --bp-tablet: 768px;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* ============================================================
+   Global Reset & Base
+   ============================================================ */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  -webkit-text-size-adjust: 100%;
+  font-size: 16px;
+  scroll-behavior: smooth;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  color: var(--color-text-primary);
+  background-color: var(--color-background);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+/* Typography base */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-tight);
+  color: var(--color-text-primary);
+}
+
+code, pre, kbd, samp {
+  font-family: var(--font-mono);
+}
+
+/* ============================================================
+   Global Animations
+   ============================================================ */
+
+/* ancla-fade-in — applied to all new elements entering the view */
+@keyframes ancla-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ancla-fade-in {
+  animation: ancla-fade-in 0.6s ease forwards;
+}
+
+/* Breathing / scale pulse */
+@keyframes ancla-breathe {
+  0%, 100% { transform: scale(1); }
+  50%       { transform: scale(1.02); }
+}
+
+/* Ripple expand */
+@keyframes ancla-ripple {
+  0%   { transform: scale(1); opacity: 0.6; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+
+/* Typewriter cursor blink */
+@keyframes ancla-blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+
+/* Stroke dash animation for BridgeWires */
+@keyframes ancla-dash {
+  to { stroke-dashoffset: -300; }
+}
+
+/* Glow pulse for wires */
+@keyframes ancla-glow-pulse {
+  0%, 100% { filter: drop-shadow(0 0 3px currentColor); }
+  50%       { filter: drop-shadow(0 0 10px currentColor); }
+}
+
+/* Firefly path motion */
+@keyframes ancla-firefly-x {
+  0%   { transform: translateX(0px) translateY(0px); }
+  25%  { transform: translateX(8px) translateY(-6px); }
+  50%  { transform: translateX(-4px) translateY(10px); }
+  75%  { transform: translateX(12px) translateY(4px); }
+  100% { transform: translateX(0px) translateY(0px); }
+}
+
+@keyframes ancla-firefly-glow {
+  0%, 100% { opacity: 0.1; }
+  50%       { opacity: 0.9; }
+}
+
+/* Blob morph */
+@keyframes ancla-blob-1 {
+  0%   { border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%; }
+  25%  { border-radius: 50% 50% 60% 40% / 40% 60% 40% 60%; }
+  50%  { border-radius: 30% 60% 70% 40% / 50% 60% 30% 60%; }
+  75%  { border-radius: 60% 40% 50% 50% / 60% 40% 60% 40%; }
+  100% { border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%; }
+}
+
+@keyframes ancla-blob-2 {
+  0%   { border-radius: 40% 60% 60% 40% / 70% 30% 60% 40%; }
+  33%  { border-radius: 55% 45% 35% 65% / 45% 55% 45% 55%; }
+  66%  { border-radius: 35% 65% 55% 45% / 60% 40% 55% 45%; }
+  100% { border-radius: 40% 60% 60% 40% / 70% 30% 60% 40%; }
+}
+
+/* Halo radial */
+@keyframes ancla-halo {
+  0%   { transform: scale(1); opacity: 0.6; }
+  100% { transform: scale(1.4); opacity: 0; }
+}
+
+/* ============================================================
+   Utility Classes
+   ============================================================ */
+
+.font-display  { font-family: var(--font-display); }
+.font-body     { font-family: var(--font-body); }
+.font-mono     { font-family: var(--font-mono); }
+
+/* Scrollbar styling */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-gray-300); border-radius: var(--radius-full); }
+::-webkit-scrollbar-thumb:hover { background: var(--color-gray-400); }
+
+/* Mobile horizontal scroll with gradient fade */
+.scroll-x-fade {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  position: relative;
+}
+.scroll-x-fade::-webkit-scrollbar { display: none; }
+
+/* Focus visible ring */
+:focus-visible {
+  outline: 2px solid var(--color-calm-500);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* Selection color */
+::selection {
+  background: var(--color-sage-200);
+  color: var(--color-sage-900);
 }
