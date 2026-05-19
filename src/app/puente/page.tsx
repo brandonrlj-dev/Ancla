@@ -1,295 +1,225 @@
 'use client';
 
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import useMediaQuery from '@mui/material/useMediaQuery';
-import { Scale, Heart, Shield, AlertTriangle, Users, Search, ArrowRight, ChevronLeft } from 'lucide-react';
+import { Scale, ChevronLeft, Zap, Heart, Link2 } from 'lucide-react';
 import BridgeWires from '@/components/viz/BridgeWires';
 import AnclaLogo from '@/components/brand/AnclaLogo';
 import Jumper from '@/components/nav/Jumper';
-import { kpis } from '@/lib/mock-data';
 
-const YOUTH_SECTIONS = [
-  { label: 'Bienvenida', href: '/joven', desc: 'Punto de entrada para jóvenes' },
-  { label: 'Termómetro emocional', href: '/joven/termometro', desc: 'Evaluación de estado emocional' },
-  { label: 'Chat con ANA', href: '/joven/chat', desc: 'Asistente de IA confidencial' },
-  { label: 'Modo silencioso', href: '/joven/silencioso', desc: 'Calculadora de cobertura' },
-  { label: 'Regulación emocional', href: '/joven/regulacion', desc: 'Técnicas de gestión emocional' },
-  { label: 'Respiración guiada', href: '/joven/respiracion', desc: 'Ejercicio de 4-4-4' },
-];
+const YOUTH_CASES = [
+  { id: 'ANC-7F4C2', platform: 'Instagram', risk: 'Crítico', date: '1 may' },
+  { id: 'ANC-7A3B1', platform: 'WhatsApp',  risk: 'Alto',    date: '30 abr' },
+  { id: 'ANC-7D9E4', platform: 'TikTok',    risk: 'Alto',    date: '29 abr' },
+  { id: 'ANC-7C2D7', platform: 'Discord',   risk: 'Medio',   date: '28 abr' },
+  { id: 'ANC-7B6F8', platform: 'Free Fire', risk: 'Medio',   date: '27 abr' },
+] as const;
 
-const POLICE_SECTIONS = [
-  { label: 'Panel de operaciones', href: '/policia', desc: 'Dashboard con KPIs y mapa' },
-  { label: 'Alertas activas', href: '/policia/alertas', desc: `${kpis.activeAlerts} casos en monitoreo` },
-  { label: 'Reportes directos', href: '/policia/reportes', desc: `${kpis.directReports} reportes nuevos` },
-  { label: 'Estadísticas', href: '/policia/estadisticas', desc: 'Embudo, heatmap y zonas' },
-];
+const POLICE_CASES = [
+  { id: 'A-7F4C2', status: 'En investigación', assigned: 'Agente Ruiz',   date: '1 may' },
+  { id: 'A-7A3B1', status: 'Análisis forense',  assigned: 'Agente Torres', date: '30 abr' },
+  { id: 'A-7D9E4', status: 'Pendiente',         assigned: 'Sin asignar',   date: '29 abr' },
+  { id: 'A-7C2D7', status: 'En revisión',        assigned: 'Agente Mora',   date: '28 abr' },
+  { id: 'A-7B6F8', status: 'Cerrado',           assigned: 'Agente Ruiz',   date: '27 abr' },
+] as const;
 
-const bridgeKpis = [
-  { icon: AlertTriangle, label: 'Alertas activas', value: kpis.activeAlerts, color: '#bf6b4a' },
-  { icon: Users,        label: 'Agresores ID',     value: kpis.aggressorsIdentified, color: '#9e4a28' },
-  { icon: Heart,        label: 'Reportes directos', value: kpis.directReports, color: '#6b7f5e' },
-  { icon: Search,       label: 'En revisión',       value: kpis.casesUnderReview, color: '#5b81a8' },
-];
+const CONNECTIONS = [
+  {
+    id: 'auto',
+    icon: Zap,
+    color: '#5b81a8',
+    title: 'Automático',
+    desc: 'La IA detecta patrones de riesgo y genera una alerta cifrada sin intervención humana.',
+  },
+  {
+    id: 'consent',
+    icon: Heart,
+    color: '#6b7f5e',
+    title: 'Consentimiento',
+    desc: 'El joven decide compartir su reporte con autoridades. Nada se envía sin su aprobación.',
+  },
+  {
+    id: 'link',
+    icon: Link2,
+    color: '#bf6b4a',
+    title: 'Vinculación',
+    desc: 'Un algoritmo empareja alertas automáticas con reportes directos del mismo caso.',
+  },
+] as const;
+
+const RISK_COLOR: Record<string, string> = {
+  Crítico: '#bf6b4a',
+  Alto:    '#d4956b',
+  Medio:   '#8faa82',
+};
 
 export default function PuentePage() {
-  const router   = useRouter();
-  const isMobile = useMediaQuery('(max-width: 768px)');
+  const router      = useRouter();
+  const isMobile    = useMediaQuery('(max-width: 900px)');
+  const [connIdx, setConnIdx] = useState(0);
+
+  useEffect(() => {
+    const t = setInterval(() => setConnIdx((i) => (i + 1) % CONNECTIONS.length), 3200);
+    return () => clearInterval(t);
+  }, []);
+
+  const conn = CONNECTIONS[connIdx];
 
   return (
     <div style={{ minHeight: '100vh', background: '#f5f3ef', display: 'flex', flexDirection: 'column' }}>
       {/* Top bar */}
-      <div style={{ background: '#1a2533', padding: '12px 24px', display: 'flex', alignItems: 'center', gap: 16 }}>
+      <div style={{ background: '#1a2533', padding: '12px 24px', display: 'flex', alignItems: 'center', gap: 16, flexShrink: 0 }}>
         <button
           onClick={() => router.push('/joven')}
           style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8aaac4', display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-body)', fontSize: '0.78rem', padding: 0 }}
         >
           <ChevronLeft size={14} /> Volver
         </button>
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
-          <Scale size={16} color="#8aaac4" />
-          <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.9rem', fontWeight: 600, color: '#dce8f0' }}>
-            Vista para jueces y autoridades
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 12px', borderRadius: 999, background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', fontFamily: 'var(--font-mono)', fontSize: '0.65rem', color: '#8aaac4', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+            <Scale size={11} /> Vista para jueces
           </span>
         </div>
         <AnclaLogo size="sm" color="#dce8f0" />
       </div>
 
-      {/* Main 3-column layout */}
-      <div style={{
-        flex: 1,
-        display: 'grid',
-        gridTemplateColumns: isMobile ? '1fr' : '280px 1fr 280px',
-        gap: 0,
-        minHeight: 0,
-      }}>
-        {/* Left — youth portal (warm) */}
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.6 }}
-          style={{
-            background: 'white',
-            borderRight: '1px solid #e5e0d8',
-            padding: '28px 20px',
-            overflowY: 'auto',
-          }}
-        >
-          <div style={{ marginBottom: 20 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-              <Heart size={16} color="var(--color-sage-500)" />
-              <span style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '0.9rem', color: 'var(--color-text-primary)' }}>
-                Portal Joven
-              </span>
-            </div>
-            <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.75rem', color: 'var(--color-text-tertiary)', lineHeight: 1.5 }}>
-              Interfaz accesible para adolescentes. Tono empático, sin tecnicismos. WCAG 2.1 AA.
-            </p>
-          </div>
+      {/* Title */}
+      <div style={{ padding: isMobile ? '24px 20px 16px' : '32px 48px 20px', textAlign: 'center', borderBottom: '1px solid #e5e0d8' }}>
+        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.1rem, 3vw, 1.5rem)', fontWeight: 600, color: '#2c3e50', lineHeight: 1.3 }}>
+          Dos portales que nunca se ven entre sí —{' '}
+          <span style={{ color: '#5b81a8' }}>conectados por tres caminos</span>
+        </h1>
+      </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {YOUTH_SECTIONS.map((s, i) => (
-              <motion.button
-                key={s.href}
+      {/* Main 3-column */}
+      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 260px 1fr', gap: 0, minHeight: 0 }}>
+
+        {/* Left — youth cases */}
+        <motion.div
+          initial={{ opacity: 0, x: -16 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.55 }}
+          style={{ background: 'white', borderRight: isMobile ? 'none' : '1px solid #e5e0d8', padding: '24px 20px', overflowY: 'auto' }}
+        >
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.62rem', letterSpacing: '0.1em', textTransform: 'uppercase', color: '#9ab7a0', marginBottom: 14 }}>
+            Portal Joven · casos recientes
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {YOUTH_CASES.map((c, i) => (
+              <motion.div
+                key={c.id}
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 + i * 0.06 }}
-                onClick={() => router.push(s.href)}
-                style={{
-                  width: '100%', textAlign: 'left', padding: '10px 12px', borderRadius: 10,
-                  background: 'var(--color-sage-50)', border: '1px solid var(--color-sage-100)',
-                  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-                  transition: 'all 150ms',
-                }}
-                onMouseEnter={(e) => { (e.currentTarget.style.background = 'var(--color-sage-100)'); }}
-                onMouseLeave={(e) => { (e.currentTarget.style.background = 'var(--color-sage-50)'); }}
+                transition={{ delay: 0.08 + i * 0.07 }}
+                style={{ padding: '12px 14px', borderRadius: 12, background: '#fafaf8', border: '1px solid #e8e4dc', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}
               >
                 <div>
-                  <div style={{ fontFamily: 'var(--font-body)', fontSize: '0.82rem', fontWeight: 500, color: 'var(--color-sage-700)', marginBottom: 1 }}>
-                    {s.label}
-                  </div>
-                  <div style={{ fontFamily: 'var(--font-body)', fontSize: '0.7rem', color: 'var(--color-text-tertiary)' }}>
-                    {s.desc}
-                  </div>
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', fontWeight: 700, color: '#2c3e50', marginBottom: 3 }}>{c.id}</div>
+                  <div style={{ fontFamily: 'var(--font-body)', fontSize: '0.72rem', color: '#8a9aaa' }}>{c.platform} · {c.date}</div>
                 </div>
-                <ArrowRight size={13} color="var(--color-sage-400)" />
-              </motion.button>
+                <div style={{ padding: '3px 9px', borderRadius: 999, background: RISK_COLOR[c.risk] + '22', border: `1px solid ${RISK_COLOR[c.risk]}55`, fontFamily: 'var(--font-mono)', fontSize: '0.6rem', fontWeight: 700, color: RISK_COLOR[c.risk], whiteSpace: 'nowrap' }}>
+                  {c.risk}
+                </div>
+              </motion.div>
             ))}
           </div>
         </motion.div>
 
-        {/* Center — bridge wires + info */}
+        {/* Center — wires + cycling connection card */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 0.3, duration: 0.7 }}
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: isMobile ? '32px 20px' : '40px 32px',
-            background: '#f5f3ef',
-            position: 'relative',
-            overflow: 'hidden',
-          }}
+          transition={{ delay: 0.25, duration: 0.7 }}
+          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '28px 16px', background: '#f5f3ef', gap: 20 }}
         >
-          {/* Watermark */}
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', opacity: 0.04 }}>
-            <Scale size={200} color="#2c3e50" />
+          {/* Wires SVG */}
+          <div style={{ width: '100%', borderRadius: 14, overflow: 'hidden', background: '#1a2533', padding: '10px 0' }}>
+            <BridgeWires />
           </div>
 
-          <div style={{ position: 'relative', width: '100%', maxWidth: 560 }}>
-            {/* Section label */}
-            <div style={{ textAlign: 'center', marginBottom: 24 }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 14px', borderRadius: 999, background: 'white', boxShadow: '0 1px 6px rgba(0,0,0,0.08)', border: '1px solid #e5e0d8', fontFamily: 'var(--font-body)', fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>
-                <Scale size={12} />
-                Puente de datos ANCLA — tiempo real
-              </span>
-            </div>
-
-            {/* SVG wires */}
-            <div style={{ width: '100%', aspectRatio: '2.1 / 1', borderRadius: 16, overflow: 'hidden', background: '#1a2533', padding: '12px 0' }}>
-              <BridgeWires />
-            </div>
-
-            {/* Legend text */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginTop: 20, textAlign: 'center' }}>
-              {[
-                { color: '#5b81a8', label: 'Alertas automáticas', desc: 'Detección por IA sin intervención' },
-                { color: '#6b7f5e', label: 'Consentimiento', desc: 'Reportes voluntarios de jóvenes' },
-                { color: '#bf6b4a', label: 'Vinculación', desc: 'Conexión alerta ↔ reporte' },
-              ].map((item) => (
-                <div key={item.label}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, marginBottom: 4 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: item.color }} />
-                    <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.72rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
-                      {item.label}
-                    </span>
+          {/* Cycling connection card */}
+          <div style={{ width: '100%', minHeight: 120, position: 'relative' }}>
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={conn.id}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.3 }}
+                style={{ padding: '16px 18px', borderRadius: 14, background: 'white', border: `1.5px solid ${conn.color}44`, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <div style={{ width: 28, height: 28, borderRadius: 8, background: conn.color + '22', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <conn.icon size={14} color={conn.color} />
                   </div>
-                  <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.68rem', color: 'var(--color-text-tertiary)', lineHeight: 1.4 }}>
-                    {item.desc}
-                  </p>
+                  <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.85rem', fontWeight: 600, color: '#2c3e50' }}>{conn.title}</span>
                 </div>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.75rem', color: '#6a7c8e', lineHeight: 1.6 }}>{conn.desc}</p>
+              </motion.div>
+            </AnimatePresence>
+
+            {/* Dots */}
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginTop: 10 }}>
+              {CONNECTIONS.map((_, i) => (
+                <button key={i} onClick={() => setConnIdx(i)}
+                  style={{ width: i === connIdx ? 16 : 6, height: 6, borderRadius: 3, background: i === connIdx ? CONNECTIONS[i].color : '#ccc', border: 'none', cursor: 'pointer', padding: 0, transition: 'all 250ms' }} />
               ))}
             </div>
-
-            {/* Explanation block */}
-            <motion.div
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.6 }}
-              style={{ marginTop: 28, padding: '18px 20px', borderRadius: 14, background: 'white', border: '1px solid #e5e0d8', boxShadow: '0 1px 6px rgba(0,0,0,0.06)' }}
-            >
-              <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 8 }}>
-                Cómo funciona ANCLA
-              </h2>
-              <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.82rem', color: 'var(--color-text-secondary)', lineHeight: 1.7 }}>
-                El sistema detecta patrones de grooming digital a través del chat ANA y el termómetro emocional.
-                Cuando se supera el umbral de riesgo, se genera una alerta automática cifrada que solo puede
-                leer la Policía Cibernética de Nayarit. Los reportes directos de jóvenes llegan por un canal
-                separado, protegido y anónimo. Este panel ofrece visibilidad simultánea de ambos flujos.
-              </p>
-            </motion.div>
           </div>
         </motion.div>
 
-        {/* Right — police portal (dark) */}
+        {/* Right — police cases */}
         <motion.div
-          initial={{ opacity: 0, x: 20 }}
+          initial={{ opacity: 0, x: 16 }}
           animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.6 }}
-          style={{
-            background: '#2c3e50',
-            borderLeft: '1px solid #1a2533',
-            padding: '28px 20px',
-            overflowY: 'auto',
-          }}
+          transition={{ duration: 0.55 }}
+          style={{ background: '#2c3e50', borderLeft: isMobile ? 'none' : '1px solid #1a2533', padding: '24px 20px', overflowY: 'auto' }}
         >
-          <div style={{ marginBottom: 20 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-              <Shield size={16} color="#9ab7d5" />
-              <span style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '0.9rem', color: '#dce8f0' }}>
-                Portal Policía
-              </span>
-            </div>
-            <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.75rem', color: '#6889a8', lineHeight: 1.5 }}>
-              Acceso restringido para Policía Cibernética. Requiere autenticación institucional + MFA.
-            </p>
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.62rem', letterSpacing: '0.1em', textTransform: 'uppercase', color: '#4d7a9e', marginBottom: 14 }}>
+            Portal Policía · casos vinculados
           </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 20 }}>
-            {POLICE_SECTIONS.map((s, i) => (
-              <motion.button
-                key={s.href}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {POLICE_CASES.map((c, i) => (
+              <motion.div
+                key={c.id}
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 + i * 0.06 }}
-                onClick={() => router.push(s.href)}
-                style={{
-                  width: '100%', textAlign: 'left', padding: '10px 12px', borderRadius: 10,
-                  background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)',
-                  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-                  transition: 'all 150ms',
-                }}
-                onMouseEnter={(e) => { (e.currentTarget.style.background = 'rgba(255,255,255,0.11)'); }}
-                onMouseLeave={(e) => { (e.currentTarget.style.background = 'rgba(255,255,255,0.06)'); }}
+                transition={{ delay: 0.08 + i * 0.07 }}
+                style={{ padding: '12px 14px', borderRadius: 12, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}
               >
                 <div>
-                  <div style={{ fontFamily: 'var(--font-body)', fontSize: '0.82rem', fontWeight: 500, color: '#9ab7d5', marginBottom: 1 }}>
-                    {s.label}
-                  </div>
-                  <div style={{ fontFamily: 'var(--font-body)', fontSize: '0.7rem', color: '#6889a8' }}>
-                    {s.desc}
-                  </div>
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', fontWeight: 700, color: '#9ab7d5', marginBottom: 3 }}>{c.id}</div>
+                  <div style={{ fontFamily: 'var(--font-body)', fontSize: '0.72rem', color: '#4d7a9e' }}>{c.assigned} · {c.date}</div>
                 </div>
-                <ArrowRight size={13} color="#5b81a8" />
-              </motion.button>
-            ))}
-          </div>
-
-          {/* KPI mini cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            {bridgeKpis.map((kpi) => (
-              <div key={kpi.label} style={{ padding: '10px 12px', borderRadius: 10, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                <kpi.icon size={14} color={kpi.color} />
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '1.3rem', fontWeight: 700, color: '#dce8f0', lineHeight: 1, marginTop: 6 }}>
-                  {kpi.value}
+                <div style={{ fontFamily: 'var(--font-body)', fontSize: '0.65rem', color: '#6889a8', whiteSpace: 'nowrap', textAlign: 'right' }}>
+                  {c.status}
                 </div>
-                <div style={{ fontFamily: 'var(--font-body)', fontSize: '0.65rem', color: '#6889a8', marginTop: 3, lineHeight: 1.3 }}>
-                  {kpi.label}
-                </div>
-              </div>
+              </motion.div>
             ))}
           </div>
         </motion.div>
       </div>
 
-      {/* Footer KPI bar */}
+      {/* Footer stats */}
       <motion.div
-        initial={{ opacity: 0, y: 10 }}
+        initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.5 }}
-        style={{
-          background: '#1a2533',
-          padding: '12px 32px',
-          display: 'flex',
-          gap: isMobile ? 16 : 40,
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          justifyContent: 'center',
-        }}
+        style={{ background: '#1a2533', padding: '14px 32px', display: 'flex', gap: isMobile ? 20 : 48, alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap' }}
       >
-        {bridgeKpis.map((kpi) => (
-          <div key={kpi.label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <kpi.icon size={13} color={kpi.color} />
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '1rem', fontWeight: 700, color: '#dce8f0' }}>{kpi.value}</span>
-            <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.72rem', color: '#6889a8' }}>{kpi.label}</span>
+        {[
+          { value: '0',   label: 'datos personales expuestos',  note: 'por diseño' },
+          { value: '~4s', label: 'tiempo de vinculación',       note: 'promedio' },
+          { value: '38%', label: 'de alertas con reporte directo', note: 'correlación' },
+        ].map((s) => (
+          <div key={s.label} style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '1.2rem', fontWeight: 700, color: '#dce8f0' }}>{s.value}</span>
+            <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.72rem', color: '#6889a8' }}>{s.label}</span>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.6rem', color: '#3d5e81' }}>({s.note})</span>
           </div>
         ))}
-        <div style={{ marginLeft: 'auto', fontFamily: 'var(--font-body)', fontSize: '0.68rem', color: '#3d5e81' }}>
-          Sistema ANCLA · Nayarit · Cifrado E2E · {new Date().getFullYear()}
-        </div>
       </motion.div>
 
       <Jumper />

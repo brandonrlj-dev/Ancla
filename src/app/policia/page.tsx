@@ -135,6 +135,41 @@ export default function PCDashboard() {
         </motion.div>
       </div>
 
+      {/* Platform breakdown */}
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.48 }}
+        style={{ background: 'white', borderRadius: 16, padding: '20px', boxShadow: 'var(--shadow-sm)', border: '1px solid var(--color-border-subtle)', marginBottom: 20 }}>
+        <div style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '0.95rem', color: 'var(--color-text-primary)', marginBottom: 20 }}>
+          Plataformas de origen
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
+          {[
+            { name: 'Instagram DM', pct: 78, color: '#bf6b4a' },
+            { name: 'WhatsApp',     pct: 64, color: '#d4956b' },
+            { name: 'TikTok DM',   pct: 52, color: '#c17a5e' },
+            { name: 'Discord',      pct: 38, color: '#5b81a8' },
+            { name: 'Free Fire',    pct: 31, color: '#7a9e6f' },
+            { name: 'Snapchat',     pct: 24, color: '#a8906b' },
+          ].map((p) => (
+            <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ width: 96, fontFamily: 'var(--font-body)', fontSize: '0.78rem', color: 'var(--color-text-secondary)', flexShrink: 0 }}>
+                {p.name}
+              </div>
+              <div style={{ flex: 1, height: 8, borderRadius: 4, background: 'var(--color-gray-100)', overflow: 'hidden' }}>
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${p.pct}%` }}
+                  transition={{ duration: 0.7, delay: 0.55 }}
+                  style={{ height: '100%', borderRadius: 4, background: p.color }}
+                />
+              </div>
+              <div style={{ width: 34, fontFamily: 'var(--font-mono)', fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-secondary)', textAlign: 'right', flexShrink: 0 }}>
+                {p.pct}%
+              </div>
+            </div>
+          ))}
+        </div>
+      </motion.div>
+
       {/* Weekly trend chart */}
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}
         style={{ background: 'white', borderRadius: 16, padding: '20px', boxShadow: 'var(--shadow-sm)', border: '1px solid var(--color-border-subtle)' }}>
