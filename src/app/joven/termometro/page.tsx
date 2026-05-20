@@ -1,226 +1,218 @@
 'use client';
 
-import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
+import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import ThermOrb from '@/components/viz/ThermOrb';
-import JovenHeader from '@/components/joven/JovenHeader';
-import { emotionalStates } from '@/lib/mock-data';
-import { useAnclaStore } from '@/lib/store';
-import type { EmotionalState } from '@/lib/store';
-import { ArrowRight } from 'lucide-react';
+import AnclaLogo from '@/components/brand/AnclaLogo';
+import { ChevronLeft } from 'lucide-react';
 
-/* Background gradient using all 5 state colors */
-const gradientH = `linear-gradient(90deg,
-  #5b81a8 0%,
-  #6b7f5e 25%,
-  #c4a882 50%,
-  #bf6b4a 75%,
-  #9e4a28 100%)`;
-
-const gradientV = `linear-gradient(180deg,
-  #5b81a8 0%,
-  #6b7f5e 25%,
-  #c4a882 50%,
-  #bf6b4a 75%,
-  #9e4a28 100%)`;
+const STATES = [
+  { id: 0, label: 'Tranquilo/a',    intensity: 1, color: '#87B383' },
+  { id: 1, label: 'Preocupado/a',   intensity: 2, color: '#A7C7E7' },
+  { id: 2, label: 'Nervioso/a',     intensity: 3, color: '#5C8AB3' },
+  { id: 3, label: 'Muy asustado/a', intensity: 4, color: '#E0B5A2' },
+  { id: 4, label: 'En pánico',      intensity: 5, color: '#C17A5E' },
+] as const;
 
 export default function TermometroPage() {
-  const router      = useRouter();
-  const isMobile    = useMediaQuery('(max-width: 768px)');
-  const { setEmotionalState } = useAnclaStore();
-  const [selected, setSelected] = useState<EmotionalState | null>(null);
+  const router    = useRouter();
+  const isMobile  = useMediaQuery('(max-width: 768px)');
+  const [picked, setPicked] = useState<number | null>(null);
+  const [hovered, setHovered] = useState<number | null>(null);
 
-  function handleSelect(id: EmotionalState) {
-    setSelected(id);
-    setEmotionalState(id);
-  }
-
-  function handleContinue() {
-    if (selected) router.push('/joven/chat');
+  function handlePick(s: typeof STATES[number]) {
+    setPicked(s.id);
+    setTimeout(() => {
+      if (s.id <= 1) router.push('/joven/modo');
+      else router.push('/joven/respiracion');
+    }, 500);
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <JovenHeader title="¿Cómo te sientes?" />
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#F5F2EE' }}>
 
-      {/* Subtle gradient stripe behind orbs */}
-      <div
-        style={{
-          height: isMobile ? '100%' : 6,
-          width: isMobile ? 6 : '100%',
-          background: isMobile ? gradientV : gradientH,
-          opacity: 0.35,
-          position: 'absolute',
-          top: isMobile ? '56px' : undefined,
-          left: isMobile ? 0 : 0,
-          right: isMobile ? undefined : 0,
-          bottom: isMobile ? 0 : 'auto',
-          marginTop: isMobile ? 0 : undefined,
-          pointerEvents: 'none',
-          zIndex: 0,
-        }}
-      />
+      {/* Top bar — 3-column grid matching original */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '1fr auto 1fr',
+        alignItems: 'center',
+        padding: isMobile ? '14px 18px' : '16px 32px',
+        borderBottom: '1px solid rgba(44,44,42,0.08)',
+        background: 'rgba(245,242,238,0.92)',
+        backdropFilter: 'blur(12px)',
+        position: 'sticky',
+        top: 0,
+        zIndex: 10,
+      }}>
+        <button
+          onClick={() => router.back()}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 5,
+            background: 'none', border: 'none', cursor: 'pointer',
+            color: '#8B8780', fontFamily: 'var(--font-body)',
+            fontSize: isMobile ? '0.7rem' : '0.75rem',
+            letterSpacing: '0.08em', textTransform: 'uppercase', padding: 0,
+          }}
+        >
+          <ChevronLeft size={14} /> Atrás
+        </button>
 
-      {/* Main content */}
-      <div
-        style={{
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          padding: isMobile ? '24px 20px' : '40px 32px',
-          position: 'relative',
-          zIndex: 1,
-        }}
-      >
-        <motion.p
+        <AnclaLogo size="sm" color="#2C2C2A" />
+
+        <div /> {/* right slot empty — Jumper is global */}
+      </div>
+
+      {/* Content */}
+      <div style={{
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        maxWidth: 1100,
+        width: '100%',
+        margin: '0 auto',
+        padding: isMobile ? '24px 18px 40px' : '40px 40px 60px',
+      }}>
+
+        {/* Eyebrow */}
+        <motion.div
+          initial={{ opacity: 0, y: -6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          style={{
+            textAlign: 'center',
+            marginBottom: 16,
+            fontFamily: 'var(--font-body)',
+            fontSize: '0.68rem',
+            letterSpacing: '0.14em',
+            textTransform: 'uppercase',
+            color: '#8B8780',
+          }}
+        >
+          Paso 1 — Cómo te sientes
+        </motion.div>
+
+        {/* H1 */}
+        <motion.h1
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.08, duration: 0.5 }}
           style={{
-            fontFamily: 'var(--font-body)',
-            fontSize: '0.95rem',
-            color: 'var(--color-text-secondary)',
-            marginBottom: isMobile ? 28 : 40,
-            maxWidth: 480,
+            fontFamily: 'var(--font-display)',
+            fontSize: isMobile ? 28 : 'clamp(40px, 4.2vw, 56px)',
+            fontWeight: 600,
+            textAlign: 'center',
+            color: '#2C2C2A',
+            lineHeight: isMobile ? 1.2 : 1.15,
+            margin: '0 0 12px',
           }}
         >
-          Toca el estado que mejor describe cómo te sientes en este momento. No hay respuesta correcta o incorrecta.
+          ¿Cómo estás en este momento?
+        </motion.h1>
+
+        {/* Sub */}
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.18, duration: 0.5 }}
+          style={{
+            textAlign: 'center',
+            color: '#57544E',
+            fontSize: isMobile ? 15 : 17,
+            fontFamily: 'var(--font-body)',
+            marginBottom: isMobile ? 28 : 64,
+            margin: `0 auto ${isMobile ? 28 : 64}px`,
+            maxWidth: 560,
+          }}
+        >
+          No hay respuesta correcta. Toca la que más se parece a lo que sientes ahora.
         </motion.p>
 
-        {/* 5 ThermOrbs */}
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: isMobile ? 'column' : 'row',
-            gap: isMobile ? 8 : 0,
-            flex: isMobile ? 'none' : 1,
-            alignItems: isMobile ? 'stretch' : 'center',
-            justifyContent: isMobile ? 'flex-start' : 'space-between',
-          }}
-        >
-          {emotionalStates.map((state, i) => (
-            <motion.div
-              key={state.id}
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: i * 0.1, duration: 0.4, ease: 'easeOut' }}
-              style={{
-                flex: isMobile ? 'none' : 1,
-                display: 'flex',
-                flexDirection: isMobile ? 'row' : 'column',
-                alignItems: 'center',
-                gap: isMobile ? 16 : 16,
-                padding: isMobile ? '14px 16px' : '20px 8px',
-                borderRadius: 16,
-                cursor: 'pointer',
-                background: selected === state.id
-                  ? `${state.color}18`
-                  : 'transparent',
-                border: selected === state.id
-                  ? `1.5px solid ${state.color}50`
-                  : '1.5px solid transparent',
-                transition: 'all 250ms ease',
-              }}
-              onClick={() => handleSelect(state.id as EmotionalState)}
-            >
-              <ThermOrb
-                color={state.color}
-                glowColor={state.color}
-                size={isMobile ? 56 : 72}
-                cadence={state.rippleCadence}
-                selected={selected === state.id}
-              />
-              <div style={{ flex: isMobile ? 1 : 'none', textAlign: isMobile ? 'left' : 'center' }}>
-                <div
-                  style={{
-                    fontFamily: 'var(--font-body)',
-                    fontWeight: selected === state.id ? 600 : 400,
-                    fontSize: '0.95rem',
-                    color: selected === state.id ? state.color : 'var(--color-text-primary)',
-                    transition: 'all 200ms',
-                  }}
-                >
-                  {state.label}
-                </div>
-                <div
-                  style={{
-                    fontFamily: 'var(--font-body)',
-                    fontSize: '0.78rem',
-                    color: 'var(--color-text-tertiary)',
-                    marginTop: 2,
-                  }}
-                >
-                  {state.description}
-                </div>
-              </div>
-            </motion.div>
-          ))}
-        </div>
+        {/* Scale */}
+        <div style={{ position: 'relative' }}>
 
-        {/* Continue button — appears when selected */}
-        <AnimatePresence>
-          {selected && (
-            <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 8 }}
-              transition={{ duration: 0.4 }}
-              style={{
-                marginTop: 32,
-                display: 'flex',
-                justifyContent: 'center',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: 12,
-              }}
-            >
-              <p style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)', fontFamily: 'var(--font-body)' }}>
-                Gracias por compartirlo. Estás haciendo algo valiente.
-              </p>
-              <button
-                onClick={handleContinue}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  background: 'var(--color-calm-500)',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: 999,
-                  padding: '13px 32px',
-                  fontSize: '0.95rem',
-                  fontFamily: 'var(--font-body)',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  boxShadow: 'var(--shadow-calm)',
-                  transition: 'all 250ms ease',
-                }}
-                onMouseEnter={(e) => { (e.currentTarget.style.transform = 'translateY(-2px)'); }}
-                onMouseLeave={(e) => { (e.currentTarget.style.transform = 'none'); }}
-              >
-                Hablar con ANA
-                <ArrowRight size={18} />
-              </button>
-              <button
-                onClick={() => router.push('/joven/respiracion')}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: 'var(--color-text-tertiary)',
-                  fontSize: '0.8rem',
-                  fontFamily: 'var(--font-body)',
-                  cursor: 'pointer',
-                  textDecoration: 'underline',
-                  textUnderlineOffset: 3,
-                  padding: 0,
-                }}
-              >
-                Primero, un ejercicio de respiración
-              </button>
-            </motion.div>
+          {/* Gradient line — desktop only */}
+          {!isMobile && (
+            <div style={{
+              position: 'absolute',
+              top: 78,
+              left: '8%',
+              right: '8%',
+              height: 2,
+              background: 'linear-gradient(to right, #87B383 0%, #A7C7E7 35%, #5C8AB3 60%, #E0B5A2 85%, #C17A5E 100%)',
+              opacity: 0.5,
+              zIndex: 0,
+              pointerEvents: 'none',
+            }} />
           )}
-        </AnimatePresence>
+
+          {/* Cards grid */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: isMobile ? '1fr' : 'repeat(5, 1fr)',
+            gap: isMobile ? 10 : 18,
+            position: 'relative',
+            zIndex: 1,
+          }}>
+            {STATES.map((s, i) => {
+              const isSelected = picked === s.id;
+              const isHovered  = hovered === s.id;
+              const isActive   = isSelected || isHovered;
+
+              return (
+                <motion.button
+                  key={s.id}
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.12 + i * 0.06, duration: 0.4 }}
+                  onClick={() => handlePick(s)}
+                  onMouseEnter={() => setHovered(s.id)}
+                  onMouseLeave={() => setHovered(null)}
+                  style={{
+                    display: 'flex',
+                    flexDirection: isMobile ? 'row' : 'column',
+                    alignItems: 'center',
+                    gap: 18,
+                    padding: isMobile ? '16px 18px' : '28px 18px',
+                    background: '#FBF9F5',
+                    border: `1.5px solid ${isActive ? s.color : 'transparent'}`,
+                    borderRadius: 22,
+                    cursor: 'pointer',
+                    textAlign: isMobile ? 'left' : 'center',
+                    color: s.color,
+                    transition: 'border-color 200ms ease, transform 200ms ease, box-shadow 200ms ease',
+                    transform: isActive ? 'translateY(-4px)' : 'none',
+                    boxShadow: isActive
+                      ? '0 2px 6px rgba(44,44,42,0.05), 0 12px 30px rgba(44,44,42,0.06)'
+                      : '0 1px 2px rgba(44,44,42,0.04)',
+                    zIndex: isActive ? 2 : 1,
+                    minHeight: isMobile ? 72 : 'auto',
+                  }}
+                >
+                  <ThermOrb
+                    intensity={s.intensity as 1|2|3|4|5}
+                    color={s.color}
+                    active={isActive}
+                    size={isMobile ? 48 : 70}
+                  />
+                  <div
+                    style={{
+                      fontFamily: 'var(--font-display)',
+                      fontSize: isMobile ? 17 : 18,
+                      fontStyle: 'italic',
+                      color: '#2C2C2A',
+                      lineHeight: 1.3,
+                    }}
+                  >
+                    {s.label}
+                  </div>
+                </motion.button>
+              );
+            })}
+          </div>
+        </div>
       </div>
     </div>
   );
