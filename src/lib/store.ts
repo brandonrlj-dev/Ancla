@@ -4,6 +4,13 @@ export type AnaState = 'listening' | 'talking' | 'validating' | 'critical';
 export type EmotionalState = 'calma' | 'bien' | 'mas-o-menos' | 'mal' | 'crisis';
 export type RiskLevel = number; // 0–100
 
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'ana';
+  content: string;
+  timestamp: Date;
+}
+
 interface AnclaStore {
   /* ANA avatar state */
   anaState: AnaState;
@@ -17,7 +24,7 @@ interface AnclaStore {
   riskLevel: RiskLevel;
   setRiskLevel: (r: RiskLevel) => void;
 
-  /* Chat messages */
+  /* Chat messages — never persisted to server, lives in RAM only */
   chatMessages: ChatMessage[];
   addChatMessage: (m: ChatMessage) => void;
 
@@ -32,13 +39,16 @@ interface AnclaStore {
   /* Jumper open state */
   jumperOpen: boolean;
   setJumperOpen: (o: boolean) => void;
-}
 
-export interface ChatMessage {
-  id: string;
-  role: 'user' | 'ana';
-  content: string;
-  timestamp: Date;
+  /* Session management — ephemeral, never leaves client RAM */
+  sessionToken: string;
+  lastActivity: number | null;
+  touchActivity: () => void;
+  clearSession: () => void;
+
+  /* Analysis results (from completed analysis job) */
+  analysisPatterns: string[];
+  setAnalysisPatterns: (p: string[]) => void;
 }
 
 export const useAnclaStore = create<AnclaStore>((set) => ({
@@ -48,7 +58,7 @@ export const useAnclaStore = create<AnclaStore>((set) => ({
   emotionalState: null,
   setEmotionalState: (s) => set({ emotionalState: s }),
 
-  riskLevel: 24,
+  riskLevel: 0,
   setRiskLevel: (r) => set({ riskLevel: r }),
 
   chatMessages: [],
@@ -63,4 +73,21 @@ export const useAnclaStore = create<AnclaStore>((set) => ({
 
   jumperOpen: false,
   setJumperOpen: (o) => set({ jumperOpen: o }),
+
+  /* Session is ephemeral — UUID generated once per module load (client-side) */
+  sessionToken: typeof crypto !== 'undefined' ? crypto.randomUUID() : 'server-ssr',
+  lastActivity: null,
+  touchActivity: () => set({ lastActivity: Date.now() }),
+  clearSession: () =>
+    set({
+      chatMessages: [],
+      sessionToken: typeof crypto !== 'undefined' ? crypto.randomUUID() : 'server-ssr',
+      lastActivity: null,
+      riskLevel: 0,
+      anaState: 'listening',
+      analysisPatterns: [],
+    }),
+
+  analysisPatterns: [],
+  setAnalysisPatterns: (p) => set({ analysisPatterns: p }),
 }));

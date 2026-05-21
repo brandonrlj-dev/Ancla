@@ -1,75 +1,135 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import AnaAvatar from '@/components/ana/AnaAvatar';
 import AnaIntro from '@/components/ana/AnaIntro';
 import { Send, Paperclip, Phone, X, ArrowRight } from 'lucide-react';
+import { useAnclaStore } from '@/lib/store';
+import { useInactivityTimer } from '@/hooks/useInactivityTimer';
+import { sendMessageToAna } from '@/actions/ana';
 
-interface Msg {
-  id: string;
-  from: 'ana' | 'user' | 'system';
-  text: string;
-  calm?: boolean;
-  typing?: boolean;
-}
-
-const CONVERSATION: Omit<Msg, 'id'>[] = [
-  { from: 'ana',  text: 'Estoy aquí. Antes de nada — ¿estás en un lugar físicamente seguro ahora mismo?' },
-  { from: 'user', text: 'Sí, estoy en mi cuarto.' },
-  { from: 'ana',  text: 'Bien. Quiero que sepas algo: lo que está pasando no es tu culpa. Las personas que extorsionan son criminales. Tú no hiciste nada para merecer esto.', calm: true },
-  { from: 'ana',  text: 'Vamos paso a paso. ¿En qué plataforma te están contactando?' },
-  { from: 'user', text: 'Instagram. Y ahora también WhatsApp.' },
-  { from: 'ana',  text: '¿Qué tienen ellos? ¿Imágenes, videos, conversaciones?' },
-  { from: 'user', text: 'Tienen fotos mías. Quieren dinero o las van a mandar a mis contactos.' },
-  { from: 'ana',  text: 'Entiendo. Esto se llama sextorsión y es un delito grave. Yo te voy a guiar para detener la propagación, proteger lo que ya está, y darte opciones reales.', calm: true },
-  { from: 'ana',  text: '¿Puedes compartirme capturas de los mensajes donde te piden dinero? Eso me ayuda a preparar tu reporte.' },
-  { from: 'system', text: 'Capturas adjuntadas · 6 archivos' },
-  { from: 'ana',  text: 'Recibido. Voy a preparar tus pasos. No te vayas de aquí.', typing: false },
-];
+const ANA_GREETING_SALVAVIDAS =
+  'Estoy aquí. Antes de nada — ¿estás en un lugar físicamente seguro ahora mismo?';
 
 export default function ChatSalvavidasPage() {
-  const router   = useRouter();
+  const router = useRouter();
   const isMobile = useMediaQuery('(max-width: 768px)');
 
-  const [showIntro, setShowIntro]       = useState(true);
-  const [stabilized, setStabilized]     = useState(false);
-  const [msgs, setMsgs]                 = useState<Msg[]>([]);
-  const [msgIdx, setMsgIdx]             = useState(0);
-  const [showCTA, setShowCTA]           = useState(false);
-  const [input, setInput]               = useState('');
-  const [anaState, setAnaState]         = useState<'listening' | 'talking' | 'validating' | 'critical'>('talking');
+  const {
+    anaState,
+    setAnaState,
+    chatMessages,
+    addChatMessage,
+    riskLevel,
+    setRiskLevel,
+    sessionToken,
+    touchActivity,
+    setAnalysisPatterns,
+  } = useAnclaStore();
+
+  const [showIntro, setShowIntro] = useState(true);
+  const [stabilized, setStabilized] = useState(false);
+  const [input, setInput] = useState('');
+  const [showCTA, setShowCTA] = useState(false);
+  const [isEmergency, setIsEmergency] = useState(false);
+  const [isPending, startTransition] = useTransition();
   const bodyRef = useRef<HTMLDivElement>(null);
 
-  /* Stage messages after stabilization */
+  useInactivityTimer();
+
+  // Seed greeting once chat becomes active
   useEffect(() => {
-    if (!stabilized || msgIdx >= CONVERSATION.length) {
-      if (stabilized && msgIdx >= CONVERSATION.length) setShowCTA(true);
-      return;
+    if (stabilized && chatMessages.length === 0) {
+      addChatMessage({
+        id: crypto.randomUUID(),
+        role: 'ana',
+        content: ANA_GREETING_SALVAVIDAS,
+        timestamp: new Date(),
+      });
+      setAnaState('listening');
     }
-    const m = CONVERSATION[msgIdx];
-    const delay = m.from === 'user' ? 900 : 1200;
-    const t = setTimeout(() => {
-      setMsgs((prev) => [...prev, { ...m, id: `m-${msgIdx}` }]);
-      if (m.from === 'ana') setAnaState(m.calm ? 'validating' : 'talking');
-      if (m.from === 'user') setAnaState('listening');
-      setMsgIdx((i) => i + 1);
-    }, 400 + (msgIdx === 0 ? 0 : delay));
-    return () => clearTimeout(t);
-  }, [stabilized, msgIdx]);
+  }, [stabilized]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight, behavior: 'smooth' });
-  }, [msgs]);
+  }, [chatMessages, isPending]);
 
-  /* STEP 1 — Intro */
+  function handleSend() {
+    const text = input.trim();
+    if (!text || isPending) return;
+    setInput('');
+
+    addChatMessage({
+      id: crypto.randomUUID(),
+      role: 'user',
+      content: text,
+      timestamp: new Date(),
+    });
+    touchActivity();
+    setAnaState('talking');
+
+    startTransition(async () => {
+      try {
+        const result = await sendMessageToAna({
+          messages: chatMessages,
+          userInput: text,
+          sessionToken,
+          mode: 'salvavidas',
+        });
+
+        addChatMessage({
+          id: crypto.randomUUID(),
+          role: 'ana',
+          content: result.response,
+          timestamp: new Date(),
+        });
+
+        setRiskLevel(Math.min(100, Math.max(0, riskLevel + result.riskDelta)));
+
+        if (result.isEmergency) {
+          setIsEmergency(true);
+          setAnaState('critical');
+        } else {
+          setAnaState('validating');
+        }
+
+        if (result.newPatterns.length > 0) setAnalysisPatterns(result.newPatterns);
+        if (result.sugerirAnalisis) setShowCTA(true);
+      } catch {
+        addChatMessage({
+          id: crypto.randomUUID(),
+          role: 'ana',
+          content: 'Hubo un problema de conexión. Sigo aquí — intenta de nuevo.',
+          timestamp: new Date(),
+        });
+        setAnaState('listening');
+      }
+    });
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  }
+
+  const statusLabel = {
+    listening: 'Escuchando · tu ritmo manda',
+    talking: 'Respondiendo',
+    validating: 'Contigo · sin juicios',
+    critical: 'Atención requerida',
+  }[anaState];
+
+  /* ── STEP 1: Intro ─────────────────────────────────────────────────────── */
   if (showIntro) {
     return <AnaIntro onDone={() => setShowIntro(false)} />;
   }
 
-  /* STEP 2 — Stabilization breathing */
+  /* ── STEP 2: Stabilization breathing ───────────────────────────────────── */
   if (!stabilized) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--color-background)', padding: '40px 24px', textAlign: 'center' }}>
@@ -82,11 +142,9 @@ export default function ChatSalvavidasPage() {
           </p>
         </motion.div>
 
-        {/* Breathing circle */}
         <div style={{ position: 'relative', width: 160, height: 160, marginBottom: 32 }}>
           {[0, 1].map((i) => (
-            <motion.div
-              key={i}
+            <motion.div key={i}
               animate={{ scale: [1, 1.7, 1], opacity: [0.5, 0, 0.5] }}
               transition={{ duration: 4, repeat: Infinity, delay: i * 2, ease: 'easeInOut' }}
               style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '2px solid var(--color-terra-300)', pointerEvents: 'none' }}
@@ -116,16 +174,10 @@ export default function ChatSalvavidasPage() {
     );
   }
 
-  /* STEP 3 — Chat */
-  const statusLabel = {
-    listening:  'Escuchando · tu ritmo manda',
-    talking:    'Respondiendo',
-    validating: 'Contigo · sin juicios',
-    critical:   'Atención requerida',
-  }[anaState];
-
+  /* ── STEP 3: Chat ───────────────────────────────────────────────────────── */
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--color-background)' }}>
+
       {/* Header */}
       <div style={{ height: 64, padding: '0 20px', display: 'flex', alignItems: 'center', gap: 12, background: 'rgba(250,249,247,0.95)', backdropFilter: 'blur(12px)', borderBottom: '1px solid var(--color-border-subtle)', flexShrink: 0 }}>
         <AnaAvatar state={anaState} size={40} />
@@ -139,8 +191,10 @@ export default function ChatSalvavidasPage() {
             </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 1 }}>
-            <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e' }} />
-            <span style={{ fontSize: '0.72rem', color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-body)' }}>{statusLabel}</span>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: isPending ? '#f59e0b' : '#22c55e', transition: 'background 300ms' }} />
+            <span style={{ fontSize: '0.72rem', color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-body)' }}>
+              {isPending ? 'ANA está escribiendo…' : statusLabel}
+            </span>
           </div>
         </div>
         <button
@@ -160,47 +214,59 @@ export default function ChatSalvavidasPage() {
       {/* Urgent 911 banner */}
       <button
         onClick={() => router.push('/joven/lineas')}
-        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 20px', background: 'var(--color-terra-50)', border: 'none', borderBottom: '1px solid var(--color-terra-200)', cursor: 'pointer', flexShrink: 0 }}
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 20px', background: isEmergency ? '#fef2f2' : 'var(--color-terra-50)', border: 'none', borderBottom: `1px solid ${isEmergency ? '#fca5a5' : 'var(--color-terra-200)'}`, cursor: 'pointer', flexShrink: 0, transition: 'background 300ms' }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Phone size={14} color="var(--color-terra-500)" />
-          <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--color-terra-600)', fontWeight: 500 }}>
-            Llamar al 911 ahora si hay peligro físico
+          <Phone size={14} color={isEmergency ? '#dc2626' : 'var(--color-terra-500)'} />
+          <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: isEmergency ? '#dc2626' : 'var(--color-terra-600)', fontWeight: isEmergency ? 700 : 500 }}>
+            {isEmergency ? 'EMERGENCIA — Llama al 800 911 2000 o al 911 ahora' : 'Llamar al 911 si hay peligro físico'}
           </span>
         </div>
-        <ArrowRight size={13} color="var(--color-terra-400)" />
+        <ArrowRight size={13} color={isEmergency ? '#dc2626' : 'var(--color-terra-400)'} />
       </button>
 
       {/* Messages */}
       <div ref={bodyRef} style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {msgs.map((m) => {
-          if (m.from === 'system') {
-            return (
-              <div key={m.id} style={{ textAlign: 'center', padding: '6px 14px', background: 'var(--color-gray-100)', borderRadius: 99, fontSize: '0.72rem', fontFamily: 'var(--font-mono)', color: 'var(--color-text-tertiary)', alignSelf: 'center' }}>
-                {m.text}
-              </div>
-            );
-          }
-          const isAna = m.from === 'ana';
+        {chatMessages.map((m) => {
+          const isAna = m.role === 'ana';
           return (
             <motion.div key={m.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
               style={{ alignSelf: isAna ? 'flex-start' : 'flex-end', maxWidth: '80%' }}>
               <div style={{
                 padding: '12px 16px',
                 borderRadius: isAna ? '18px 18px 18px 4px' : '18px 18px 4px 18px',
-                background: isAna ? (m.calm ? 'rgba(214,191,171,0.22)' : 'white') : 'var(--color-terra-500)',
+                background: isAna ? 'white' : 'var(--color-terra-500)',
                 color: isAna ? 'var(--color-text-primary)' : 'white',
                 fontFamily: 'var(--font-body)', fontSize: '0.9rem', lineHeight: 1.6,
                 boxShadow: isAna ? 'var(--shadow-sm)' : 'none',
-                border: isAna ? (m.calm ? '1px solid rgba(201,163,106,0.35)' : '1px solid var(--color-border-subtle)') : 'none',
+                border: isAna ? '1px solid var(--color-border-subtle)' : 'none',
               }}>
-                {m.text}
-                {isAna && <div style={{ marginTop: 6, paddingTop: 4, borderTop: '1px solid var(--color-border-subtle)', fontSize: '0.68rem', color: 'var(--color-text-tertiary)', fontStyle: 'italic' }}>— ANA</div>}
+                {m.content}
+                {isAna && (
+                  <div style={{ marginTop: 6, paddingTop: 4, borderTop: '1px solid var(--color-border-subtle)', fontSize: '0.68rem', color: 'var(--color-text-tertiary)', fontStyle: 'italic' }}>
+                    — ANA
+                  </div>
+                )}
               </div>
             </motion.div>
           );
         })}
 
+        {/* Typing indicator */}
+        <AnimatePresence>
+          {isPending && (
+            <motion.div key="typing" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} style={{ alignSelf: 'flex-start' }}>
+              <div style={{ display: 'flex', gap: 6, padding: '12px 16px', background: 'white', borderRadius: '18px 18px 18px 4px', boxShadow: 'var(--shadow-sm)', border: '1px solid var(--color-border-subtle)' }}>
+                {[0, 1, 2].map((i) => (
+                  <motion.div key={i} animate={{ y: [0, -5, 0] }} transition={{ duration: 0.5, repeat: Infinity, delay: i * 0.15 }}
+                    style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--color-terra-300)' }} />
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* CTA */}
         <AnimatePresence>
           {showCTA && (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} style={{ display: 'flex', justifyContent: 'center', marginTop: 8 }}>
@@ -218,18 +284,26 @@ export default function ChatSalvavidasPage() {
 
       {/* Input row */}
       <div style={{ padding: '10px 16px 14px', borderTop: '1px solid var(--color-border-subtle)', background: 'white', display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
-        <button style={{ width: 38, height: 38, borderRadius: '50%', background: 'var(--color-gray-100)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <button
+          title="Adjuntar captura (disponible en el análisis)"
+          style={{ width: 38, height: 38, borderRadius: '50%', background: 'var(--color-gray-100)', border: 'none', cursor: 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, opacity: 0.5 }}
+        >
           <Paperclip size={16} color="var(--color-text-tertiary)" />
         </button>
         <input
-          value={input} onChange={(e) => setInput(e.target.value)}
-          placeholder="Escribe aquí o pega los mensajes…"
-          style={{ flex: 1, padding: '10px 16px', borderRadius: 999, border: '1.5px solid var(--color-border)', background: 'var(--color-gray-50)', fontFamily: 'var(--font-body)', fontSize: '0.9rem', outline: 'none', color: 'var(--color-text-primary)' }}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          disabled={isPending}
+          placeholder={isPending ? 'ANA está respondiendo…' : 'Escribe aquí o pega los mensajes…'}
+          style={{ flex: 1, padding: '10px 16px', borderRadius: 999, border: '1.5px solid var(--color-border)', background: isPending ? 'var(--color-gray-100)' : 'var(--color-gray-50)', fontFamily: 'var(--font-body)', fontSize: '0.9rem', outline: 'none', color: 'var(--color-text-primary)', transition: 'background 200ms' }}
         />
         <button
-          onClick={() => { if (!input.trim()) return; setInput(''); }}
-          style={{ width: 38, height: 38, borderRadius: '50%', background: 'var(--color-terra-500)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          <Send size={16} color="white" />
+          onClick={handleSend}
+          disabled={!input.trim() || isPending}
+          style={{ width: 38, height: 38, borderRadius: '50%', background: input.trim() && !isPending ? 'var(--color-terra-500)' : 'var(--color-gray-200)', border: 'none', cursor: input.trim() && !isPending ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'background 200ms' }}
+        >
+          <Send size={16} color={input.trim() && !isPending ? 'white' : 'var(--color-text-tertiary)'} />
         </button>
       </div>
     </div>

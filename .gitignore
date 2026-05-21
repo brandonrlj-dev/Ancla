@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Claude Code
+.claudecode/
+.claude/
+
+# Usar pnpm estrictamente (Ignorar lockfiles de npm y yarn)
+package-lock.json
+yarn.lock

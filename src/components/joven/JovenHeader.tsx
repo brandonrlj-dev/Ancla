@@ -8,10 +8,11 @@ import AnclaLogo from '@/components/brand/AnclaLogo';
 interface JovenHeaderProps {
   title?: string;
   showBack?: boolean;
+  back?: string;
   rightSlot?: React.ReactNode;
 }
 
-export default function JovenHeader({ title, showBack = true, rightSlot }: JovenHeaderProps) {
+export default function JovenHeader({ title, showBack = true, back, rightSlot }: JovenHeaderProps) {
   const router = useRouter();
 
   return (
@@ -35,7 +36,7 @@ export default function JovenHeader({ title, showBack = true, rightSlot }: Joven
     >
       {showBack && (
         <button
-          onClick={() => router.back()}
+          onClick={() => (back ? router.push(back) : router.back())}
           aria-label="Volver"
           style={{
             display: 'flex',

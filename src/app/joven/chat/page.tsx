@@ -1,73 +1,134 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import AnaAvatar from '@/components/ana/AnaAvatar';
 import AnaIntro from '@/components/ana/AnaIntro';
-import { Send, Paperclip, Shield, X } from 'lucide-react';
+import { Send, Paperclip, Shield, X, Phone } from 'lucide-react';
+import { useAnclaStore } from '@/lib/store';
+import { useInactivityTimer } from '@/hooks/useInactivityTimer';
+import { sendMessageToAna } from '@/actions/ana';
 
-interface Msg {
-  id: string;
-  from: 'ana' | 'user' | 'system';
-  text: string;
-  calm?: boolean;
-  typing?: boolean;
-}
-
-const CONVERSATION: Omit<Msg, 'id'>[] = [
-  { from: 'ana',  text: 'Hola. Soy ANA. Estoy aquí para ayudarte a entender lo que está pasando. Nada de lo que compartas sale de aquí sin tu permiso.' },
-  { from: 'ana',  text: '¿Hay algo en una conversación que te haya hecho sentir incómodo/a?' },
-  { from: 'user', text: 'Conocí a alguien en un juego hace 3 semanas. Empezó muy lindo, decía cosas bonitas, pero ahora me pide cosas que me incomodan.' },
-  { from: 'ana',  text: 'Gracias por contarme. Lo que sientes es válido. Cuando alguien empieza muy intenso y luego cambia, hay un patrón conocido detrás. ¿Puedes contarme qué tipo de cosas te pide?', calm: true },
-  { from: 'user', text: 'Quiere que le mande fotos sin ropa. Dice que si lo quiero de verdad lo haría. Y que si lo cuento se va a enojar.' },
-  { from: 'ana',  text: 'Lo que describes tiene un nombre. No es amor — es manipulación. Eso que sientes en el estómago tiene razón.', calm: true },
-  { from: 'ana',  text: 'Para entender mejor el patrón, ¿puedes pegarme los mensajes o subir una captura? No te identifica a ti. Solo me ayuda a leer su forma de hablar.' },
-  { from: 'system', text: 'Captura adjuntada · WhatsApp · 47 mensajes' },
-  { from: 'ana',  text: 'Analizando los mensajes…', typing: true },
-  { from: 'ana',  text: 'Listo. Detecté 3 patrones que aparecen en casos similares. ¿Quieres ver el análisis completo?' },
-];
+const ANA_GREETING =
+  'Hola. Soy ANA. Estoy aquí para ayudarte a entender lo que está pasando. Nada de lo que compartas sale de aquí sin tu permiso. ¿Hay algo en una conversación que te haya hecho sentir incómodo/a?';
 
 export default function ChatEscudoPage() {
-  const router   = useRouter();
+  const router = useRouter();
   const isMobile = useMediaQuery('(max-width: 768px)');
 
+  const {
+    anaState,
+    setAnaState,
+    chatMessages,
+    addChatMessage,
+    riskLevel,
+    setRiskLevel,
+    sessionToken,
+    touchActivity,
+    setAnalysisPatterns,
+  } = useAnclaStore();
+
   const [showIntro, setShowIntro] = useState(true);
-  const [msgs, setMsgs]           = useState<Msg[]>([]);
-  const [msgIdx, setMsgIdx]       = useState(0);
-  const [showCTA, setShowCTA]     = useState(false);
-  const [input, setInput]         = useState('');
-  const [anaState, setAnaState]   = useState<'listening' | 'talking' | 'validating' | 'critical'>('talking');
+  const [input, setInput] = useState('');
+  const [showCTA, setShowCTA] = useState(false);
+  const [isEmergency, setIsEmergency] = useState(false);
+  const [isPending, startTransition] = useTransition();
   const bodyRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  /* Stage messages after intro */
+  useInactivityTimer();
+
+  // Seed the greeting on first load (after intro dismissal)
   useEffect(() => {
-    if (showIntro || msgIdx >= CONVERSATION.length) {
-      if (msgIdx >= CONVERSATION.length) setShowCTA(true);
-      return;
+    if (!showIntro && chatMessages.length === 0) {
+      addChatMessage({
+        id: crypto.randomUUID(),
+        role: 'ana',
+        content: ANA_GREETING,
+        timestamp: new Date(),
+      });
+      setAnaState('listening');
     }
-    const m = CONVERSATION[msgIdx];
-    const delay = m.from === 'user' ? 900 : m.typing ? 1400 : 1200;
-    const t = setTimeout(() => {
-      setMsgs((prev) => [...prev, { ...m, id: `m-${msgIdx}` }]);
-      if (m.from === 'ana') setAnaState(m.calm ? 'validating' : 'talking');
-      if (m.from === 'user') setAnaState('listening');
-      setMsgIdx((i) => i + 1);
-    }, 400 + (msgIdx === 0 ? 0 : delay));
-    return () => clearTimeout(t);
-  }, [showIntro, msgIdx]);
+  }, [showIntro]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* Auto-scroll */
+  // Auto-scroll to latest message
   useEffect(() => {
     bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight, behavior: 'smooth' });
-  }, [msgs]);
+  }, [chatMessages, isPending]);
+
+  function handleSend() {
+    const text = input.trim();
+    if (!text || isPending) return;
+    setInput('');
+
+    const userMsg = {
+      id: crypto.randomUUID(),
+      role: 'user' as const,
+      content: text,
+      timestamp: new Date(),
+    };
+    addChatMessage(userMsg);
+    touchActivity();
+    setAnaState('talking');
+
+    startTransition(async () => {
+      try {
+        const result = await sendMessageToAna({
+          messages: chatMessages,
+          userInput: text,
+          sessionToken,
+          mode: 'escudo',
+        });
+
+        addChatMessage({
+          id: crypto.randomUUID(),
+          role: 'ana',
+          content: result.response,
+          timestamp: new Date(),
+        });
+
+        setRiskLevel(Math.min(100, Math.max(0, riskLevel + result.riskDelta)));
+
+        if (result.isEmergency) {
+          setIsEmergency(true);
+          setAnaState('critical');
+        } else {
+          setAnaState('validating');
+        }
+
+        if (result.newPatterns.length > 0) {
+          setAnalysisPatterns(result.newPatterns);
+        }
+
+        if (result.sugerirAnalisis) {
+          setShowCTA(true);
+        }
+      } catch {
+        addChatMessage({
+          id: crypto.randomUUID(),
+          role: 'ana',
+          content: 'Hubo un problema de conexión. Sigo aquí — intenta de nuevo.',
+          timestamp: new Date(),
+        });
+        setAnaState('listening');
+      }
+    });
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  }
 
   const statusLabel = {
-    listening:  'Escuchando · tu ritmo manda',
-    talking:    'Respondiendo',
+    listening: 'Escuchando · tu ritmo manda',
+    talking: 'Respondiendo',
     validating: 'Contigo · sin juicios',
-    critical:   'Atención requerida',
+    critical: 'Atención requerida',
   }[anaState];
 
   return (
@@ -80,6 +141,7 @@ export default function ChatEscudoPage() {
         <div style={{ height: '100vh', display: 'flex', overflow: 'hidden', background: 'var(--color-background)' }}>
           {/* Main chat column */}
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+
             {/* Header */}
             <div style={{ height: 64, padding: '0 20px', display: 'flex', alignItems: 'center', gap: 12, background: 'rgba(250,249,247,0.95)', backdropFilter: 'blur(12px)', borderBottom: '1px solid var(--color-border-subtle)', flexShrink: 0 }}>
               <AnaAvatar state={anaState} size={40} />
@@ -93,13 +155,14 @@ export default function ChatEscudoPage() {
                   </span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 1 }}>
-                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e' }} />
-                  <span style={{ fontSize: '0.72rem', color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-body)' }}>{statusLabel}</span>
+                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: isPending ? '#f59e0b' : '#22c55e', transition: 'background 300ms' }} />
+                  <span style={{ fontSize: '0.72rem', color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-body)' }}>
+                    {isPending ? 'ANA está escribiendo…' : statusLabel}
+                  </span>
                 </div>
               </div>
               <button
                 onClick={() => router.push('/joven/silencioso')}
-                title="Cierre rápido"
                 style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 999, background: 'var(--color-gray-100)', border: 'none', cursor: 'pointer', fontSize: '0.75rem', color: 'var(--color-text-secondary)', fontFamily: 'var(--font-body)' }}
               >
                 <X size={13} /> Cierre rápido
@@ -112,50 +175,88 @@ export default function ChatEscudoPage() {
                 style={{ height: '100%', background: 'var(--color-calm-400)', borderRadius: '0 2px 2px 0' }} />
             </div>
 
+            {/* Emergency banner */}
+            <AnimatePresence>
+              {isEmergency && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  style={{ background: '#fef2f2', borderBottom: '1px solid #fca5a5', padding: '10px 20px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}
+                >
+                  <Phone size={14} color="#dc2626" />
+                  <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.82rem', color: '#dc2626', fontWeight: 600 }}>
+                    Línea de la Vida: 800 911 2000 &nbsp;·&nbsp; Emergencias: 911
+                  </span>
+                  <button
+                    onClick={() => router.push('/joven/lineas')}
+                    style={{ marginLeft: 'auto', padding: '4px 12px', borderRadius: 999, background: '#dc2626', color: 'white', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '0.75rem', fontWeight: 600 }}
+                  >
+                    Ver todas
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             {/* Messages */}
             <div ref={bodyRef} style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {msgs.map((m) => {
-                if (m.from === 'system') {
-                  return (
-                    <div key={m.id} style={{ textAlign: 'center', padding: '6px 14px', background: 'var(--color-gray-100)', borderRadius: 99, fontSize: '0.72rem', fontFamily: 'var(--font-mono)', color: 'var(--color-text-tertiary)', alignSelf: 'center' }}>
-                      {m.text}
-                    </div>
-                  );
-                }
-                if (m.typing) {
-                  return (
-                    <div key={m.id} style={{ display: 'flex', gap: 6, padding: '12px 16px', background: 'white', borderRadius: '18px 18px 18px 4px', alignSelf: 'flex-start', boxShadow: 'var(--shadow-sm)' }}>
-                      {[0,1,2].map((i) => (
-                        <motion.div key={i} animate={{ y: [0,-5,0] }} transition={{ duration: 0.5, repeat: Infinity, delay: i * 0.15 }}
-                          style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--color-calm-300)' }} />
-                      ))}
-                    </div>
-                  );
-                }
-                const isAna = m.from === 'ana';
+
+              {chatMessages.map((m) => {
+                const isAna = m.role === 'ana';
                 return (
                   <motion.div key={m.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
                     style={{ alignSelf: isAna ? 'flex-start' : 'flex-end', maxWidth: '80%' }}>
                     <div style={{
                       padding: '12px 16px',
                       borderRadius: isAna ? '18px 18px 18px 4px' : '18px 18px 4px 18px',
-                      background: isAna ? (m.calm ? 'rgba(214,191,171,0.22)' : 'white') : 'var(--color-calm-500)',
+                      background: isAna
+                        ? (isEmergency && anaState === 'critical' ? '#fef2f2' : 'white')
+                        : 'var(--color-calm-500)',
                       color: isAna ? 'var(--color-text-primary)' : 'white',
                       fontFamily: 'var(--font-body)', fontSize: '0.9rem', lineHeight: 1.6,
                       boxShadow: isAna ? 'var(--shadow-sm)' : 'none',
-                      border: isAna ? (m.calm ? '1px solid rgba(201,163,106,0.35)' : '1px solid var(--color-border-subtle)') : 'none',
+                      border: isAna
+                        ? `1px solid ${isEmergency && anaState === 'critical' ? '#fca5a5' : 'var(--color-border-subtle)'}`
+                        : 'none',
                     }}>
-                      {m.text}
-                      {isAna && <div style={{ marginTop: 6, paddingTop: 4, borderTop: '1px solid var(--color-border-subtle)', fontSize: '0.68rem', color: 'var(--color-text-tertiary)', fontStyle: 'italic' }}>— ANA</div>}
+                      {m.content}
+                      {isAna && (
+                        <div style={{ marginTop: 6, paddingTop: 4, borderTop: '1px solid var(--color-border-subtle)', fontSize: '0.68rem', color: 'var(--color-text-tertiary)', fontStyle: 'italic' }}>
+                          — ANA
+                        </div>
+                      )}
                     </div>
                   </motion.div>
                 );
               })}
 
+              {/* Typing indicator */}
+              <AnimatePresence>
+                {isPending && (
+                  <motion.div
+                    key="typing"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    style={{ alignSelf: 'flex-start' }}
+                  >
+                    <div style={{ display: 'flex', gap: 6, padding: '12px 16px', background: 'white', borderRadius: '18px 18px 18px 4px', boxShadow: 'var(--shadow-sm)', border: '1px solid var(--color-border-subtle)' }}>
+                      {[0, 1, 2].map((i) => (
+                        <motion.div key={i}
+                          animate={{ y: [0, -5, 0] }}
+                          transition={{ duration: 0.5, repeat: Infinity, delay: i * 0.15 }}
+                          style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--color-calm-300)' }}
+                        />
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               {/* CTA */}
               <AnimatePresence>
-                {showCTA && (
-                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} style={{ display: 'flex', justifyContent: 'center', marginTop: 8 }}>
+                {showCTA && !isEmergency && (
+                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                    style={{ display: 'flex', justifyContent: 'center', marginTop: 8 }}>
                     <button
                       onClick={() => router.push('/joven/analisis')}
                       style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '13px 28px', borderRadius: 999, background: 'var(--color-calm-500)', color: 'white', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '0.95rem', fontWeight: 600, boxShadow: '0 4px 16px rgba(91,129,168,0.35)' }}
@@ -165,23 +266,33 @@ export default function ChatEscudoPage() {
                   </motion.div>
                 )}
               </AnimatePresence>
+
               <div style={{ height: 12 }} />
             </div>
 
             {/* Input row */}
-            <div style={{ padding: '10px 16px 14px', borderTop: '1px solid var(--color-border-subtle)', background: 'white', display: 'flex', gap: 8, alignItems: 'center' }}>
-              <button style={{ width: 38, height: 38, borderRadius: '50%', background: 'var(--color-gray-100)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <div style={{ padding: '10px 16px 14px', borderTop: '1px solid var(--color-border-subtle)', background: 'white', display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+              <button
+                title="Adjuntar captura (disponible en el análisis)"
+                style={{ width: 38, height: 38, borderRadius: '50%', background: 'var(--color-gray-100)', border: 'none', cursor: 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, opacity: 0.5 }}
+              >
                 <Paperclip size={16} color="var(--color-text-tertiary)" />
               </button>
               <input
-                value={input} onChange={(e) => setInput(e.target.value)}
-                placeholder="Escribe aquí o pega los mensajes…"
-                style={{ flex: 1, padding: '10px 16px', borderRadius: 999, border: '1.5px solid var(--color-border)', background: 'var(--color-gray-50)', fontFamily: 'var(--font-body)', fontSize: '0.9rem', outline: 'none', color: 'var(--color-text-primary)' }}
+                ref={inputRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                disabled={isPending}
+                placeholder={isPending ? 'ANA está respondiendo…' : 'Escribe aquí o pega los mensajes…'}
+                style={{ flex: 1, padding: '10px 16px', borderRadius: 999, border: '1.5px solid var(--color-border)', background: isPending ? 'var(--color-gray-100)' : 'var(--color-gray-50)', fontFamily: 'var(--font-body)', fontSize: '0.9rem', outline: 'none', color: 'var(--color-text-primary)', transition: 'background 200ms' }}
               />
               <button
-                onClick={() => { if (!input.trim()) return; setInput(''); }}
-                style={{ width: 38, height: 38, borderRadius: '50%', background: 'var(--color-calm-500)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <Send size={16} color="white" />
+                onClick={handleSend}
+                disabled={!input.trim() || isPending}
+                style={{ width: 38, height: 38, borderRadius: '50%', background: input.trim() && !isPending ? 'var(--color-calm-500)' : 'var(--color-gray-200)', border: 'none', cursor: input.trim() && !isPending ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'background 200ms' }}
+              >
+                <Send size={16} color={input.trim() && !isPending ? 'white' : 'var(--color-text-tertiary)'} />
               </button>
             </div>
           </div>
@@ -199,27 +310,9 @@ export default function ChatEscudoPage() {
               </div>
 
               <div>
-                <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--color-text-tertiary)', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: 'var(--font-body)', marginBottom: 10 }}>Tu progreso</div>
-                <div style={{ padding: '12px 14px', borderRadius: 12, background: 'white', border: '1px solid var(--color-border-subtle)', boxShadow: 'var(--shadow-sm)', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {[
-                    { dot: 'var(--color-sage-500)', label: 'Contexto inicial', status: 'completo' },
-                    { dot: 'var(--color-calm-500)', label: 'Compartir evidencia', status: 'en curso' },
-                    { dot: 'var(--color-border)', label: 'Análisis y decisiones', status: '', dim: true },
-                  ].map((s) => (
-                    <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 8, opacity: s.dim ? 0.45 : 1 }}>
-                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: s.dot, flexShrink: 0 }} />
-                      <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
-                        {s.label}{s.status && <strong style={{ color: 'var(--color-text-primary)' }}> · {s.status}</strong>}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div>
                 <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--color-text-tertiary)', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: 'var(--font-body)', marginBottom: 10 }}>Privacidad</div>
                 <div style={{ padding: '12px 14px', borderRadius: 12, background: 'white', border: '1px solid var(--color-border-subtle)', boxShadow: 'var(--shadow-sm)', fontSize: '0.78rem', color: 'var(--color-text-secondary)', fontFamily: 'var(--font-body)', lineHeight: 1.55 }}>
-                  ANA procesa tus mensajes localmente. Nada se sube sin tu consentimiento explícito. Tu identidad nunca se ve.
+                  Esta conversación vive solo en tu dispositivo. Nada se sube sin tu permiso. Tu identidad nunca se ve.
                 </div>
               </div>
 
