@@ -1,288 +1,608 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { useState } from 'react';
+import { useState, useEffect, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import useMediaQuery from '@mui/material/useMediaQuery';
-import { Download, Copy, Send, CheckCircle, Phone, ChevronLeft, ExternalLink } from 'lucide-react';
+import { ChevronLeft, CheckCircle, Phone, ArrowRight, Download, AlertTriangle, Shield, Users } from 'lucide-react';
+import { useAnclaStore } from '@/lib/store';
+import { submitReport } from '@/actions/report';
 
-const FOLIO = 'A-7F4C2';
-const HASH  = 'sha256:e3b0c44298fc1c149afb...f855a141290';
-const DATE  = '1 may 2026 · 19:47';
+const PLATFORMS = [
+  'Instagram', 'WhatsApp', 'TikTok', 'Facebook',
+  'Snapchat', 'Telegram', 'Discord', 'Roblox',
+  'Minecraft', 'Free Fire', 'Otra',
+];
 
-const AUTHORITY_MSG = `Estimada autoridad:
+const PATTERN_LABELS: Record<string, string> = {
+  love_bombing:           'Love bombing',
+  aislamiento:            'Aislamiento',
+  secretismo:             'Secretismo',
+  gradualidad_sexual:     'Gradualidad sexual',
+  solicitud_imagen:       'Solicitud de imágenes',
+  amenaza_difusion:       'Amenaza de difusión',
+  presion:                'Presión repetida',
+  manipulacion_emocional: 'Manipulación emocional',
+};
 
-Adjunto el reporte #${FOLIO} generado por ANCLA, sistema de apoyo a víctimas de extorsión digital.
+function labelFor(k: string) {
+  return PATTERN_LABELS[k] ?? k.replace(/_/g, ' ');
+}
 
-La víctima (menor de edad) reporta sextorsión activa desde el 28 de abril de 2026. Los materiales incluyen capturas de conversaciones en Instagram y WhatsApp donde el agresor exige dinero bajo amenaza de difundir imágenes íntimas.
+function deriveAbuseType(patterns: string[]) {
+  if (patterns.includes('amenaza_difusion') || patterns.includes('solicitud_imagen')) return 'Sextorsión'
+  if (patterns.some((p) => ['gradualidad_sexual', 'love_bombing', 'secretismo'].includes(p))) return 'Grooming'
+  return 'Acoso digital'
+}
 
-Los hashes de integridad SHA-256 han sido registrados automáticamente para preservar la cadena de custodia digital.
+async function computeHash(input: string): Promise<{ folio: string; hex: string }> {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input));
+  const hex = Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
+  return { folio: 'A-' + hex.slice(0, 6).toUpperCase(), hex };
+}
 
-Solicito atención prioritaria.
+// ── Shared card style ─────────────────────────────────────────────────────────
+const card: React.CSSProperties = {
+  background: 'white',
+  borderRadius: 16,
+  border: '1px solid var(--color-border-subtle)',
+  padding: '18px 18px 16px',
+  boxShadow: 'var(--shadow-sm)',
+};
 
-ANCLA · ancla.org`;
-
-export default function ReportePage() {
-  const router   = useRouter();
-  const isMobile = useMediaQuery('(max-width: 768px)');
-  const [email,  setEmail]  = useState('');
-  const [copied, setCopied] = useState(false);
-  const [sent,   setSent]   = useState(false);
-
-  function handleCopy() {
-    navigator.clipboard.writeText(AUTHORITY_MSG);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2200);
-  }
-
-  function handleSend() {
-    setSent(true);
-  }
-
-  /* ── Sent confirmation ── */
-  if (sent) {
-    return (
-      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--color-background)', padding: '40px 24px', textAlign: 'center' }}>
-        <motion.div initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }} transition={{ type: 'spring', stiffness: 260, damping: 22 }}>
-          <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'var(--color-calm-50)', border: '2px solid var(--color-calm-300)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px' }}>
-            <CheckCircle size={38} color="var(--color-calm-500)" />
-          </div>
-          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.4rem, 4vw, 1.9rem)', fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 12 }}>
-            Reporte enviado
-          </h1>
-          <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.95rem', color: 'var(--color-text-secondary)', lineHeight: 1.65, maxWidth: 380, margin: '0 auto 40px' }}>
-            La Policía Cibernética recibió tu reporte #{FOLIO}. Pueden tardarse hasta 24 horas en responder. Mientras tanto, sigue los pasos que ya revisaste.
-          </p>
-          <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 12, justifyContent: 'center' }}>
-            <button
-              onClick={() => router.push('/joven/lineas')}
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '13px 28px', borderRadius: 999, background: 'var(--color-terra-500)', color: 'white', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '0.9rem', fontWeight: 600 }}
-            >
-              <Phone size={16} /> Ver líneas de atención
-            </button>
-            <button
-              onClick={() => router.push('/joven/regulacion')}
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '13px 28px', borderRadius: 999, background: 'white', color: 'var(--color-text-secondary)', border: '1.5px solid var(--color-border)', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '0.9rem' }}
-            >
-              Métodos para calmarme
-            </button>
-          </div>
-        </motion.div>
-      </div>
-    );
-  }
-
-  /* ── Main layout ── */
+// ── Collapsible document summary ──────────────────────────────────────────────
+function DocSummary({
+  open, onToggle, folio, hashHex, allPatterns, today,
+}: {
+  open: boolean; onToggle: () => void;
+  folio: string; hashHex: string; allPatterns: string[]; today: string;
+}) {
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--color-background)' }}>
-      {/* Top bar */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', height: 56, borderBottom: '1px solid var(--color-border-subtle)', background: 'rgba(250,249,247,0.95)', backdropFilter: 'blur(12px)', flexShrink: 0 }}>
-        <button onClick={() => router.push('/joven/acciones')}
-          style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-secondary)', fontFamily: 'var(--font-body)', fontSize: '0.82rem', padding: 0 }}>
-          <ChevronLeft size={16} /> Atrás
-        </button>
-        <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.9rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>
-          Tu reporte ANA
-        </div>
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.68rem', color: 'var(--color-text-tertiary)', letterSpacing: '0.06em' }}>
-          #{FOLIO}
-        </div>
-      </div>
-
-      <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.68rem', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--color-text-tertiary)', padding: '10px 24px', borderBottom: '1px solid var(--color-border-subtle)' }}>
-        Paso 5 de 5
-      </div>
-
-      <div style={{ flex: 1, display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 0, maxWidth: 1100, margin: '0 auto', width: '100%' }}>
-
-        {/* ── Left sidebar ── */}
-        <div style={{ width: isMobile ? '100%' : 340, flexShrink: 0, padding: isMobile ? '24px 20px' : '32px 32px', borderRight: isMobile ? 'none' : '1px solid var(--color-border-subtle)', borderBottom: isMobile ? '1px solid var(--color-border-subtle)' : 'none', display: 'flex', flexDirection: 'column', gap: 20 }}>
-
-          {/* Download PDF */}
-          <button
-            style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '13px 20px', borderRadius: 14, background: 'var(--color-text-primary)', color: 'white', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '0.9rem', fontWeight: 600, width: '100%', justifyContent: 'center' }}
-          >
-            <Download size={17} /> Descargar PDF
-          </button>
-
-          {/* Authority message */}
-          <div style={{ background: 'white', borderRadius: 16, border: '1px solid var(--color-border-subtle)', padding: '18px 18px 14px', boxShadow: 'var(--shadow-sm)' }}>
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--color-text-tertiary)', marginBottom: 10 }}>
-              Mensaje para autoridades
-            </div>
-            <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.78rem', color: 'var(--color-text-secondary)', lineHeight: 1.65, whiteSpace: 'pre-line', marginBottom: 14 }}>
-              {AUTHORITY_MSG}
-            </p>
-            <button
-              onClick={handleCopy}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 999, background: copied ? 'var(--color-calm-50)' : 'var(--color-gray-100)', border: `1.5px solid ${copied ? 'var(--color-calm-300)' : 'var(--color-border)'}`, cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '0.78rem', color: copied ? 'var(--color-calm-600)' : 'var(--color-text-secondary)', transition: 'all 200ms', width: '100%', justifyContent: 'center' }}
-            >
-              {copied ? <CheckCircle size={14} /> : <Copy size={14} />}
-              {copied ? 'Copiado' : 'Copiar mensaje'}
-            </button>
-          </div>
-
-          {/* Send to police */}
-          <div style={{ background: 'white', borderRadius: 16, border: '1px solid var(--color-border-subtle)', padding: '18px 18px 18px', boxShadow: 'var(--shadow-sm)' }}>
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--color-text-tertiary)', marginBottom: 10 }}>
-              Enviar a Policía Cibernética
-            </div>
-            <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.78rem', color: 'var(--color-text-secondary)', lineHeight: 1.6, marginBottom: 14 }}>
-              ANCLA enviará el reporte con hash verificable por correo oficial.
-            </p>
-            <input
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="opcional@correo.com"
-              style={{ width: '100%', padding: '9px 14px', borderRadius: 10, border: '1.5px solid var(--color-border)', background: 'var(--color-gray-50)', fontFamily: 'var(--font-body)', fontSize: '0.82rem', outline: 'none', color: 'var(--color-text-primary)', marginBottom: 12, boxSizing: 'border-box' }}
-            />
-            <button
-              onClick={handleSend}
-              style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '10px 20px', borderRadius: 999, background: 'var(--color-terra-500)', color: 'white', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '0.85rem', fontWeight: 600, width: '100%', justifyContent: 'center' }}
-            >
-              <Send size={15} /> Enviar reporte
-            </button>
-          </div>
-
-          {/* Lines button */}
-          <button
-            onClick={() => router.push('/joven/lineas')}
-            style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '11px 20px', borderRadius: 999, background: 'white', border: '1.5px solid var(--color-border)', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '0.85rem', color: 'var(--color-text-secondary)', justifyContent: 'center' }}
-          >
-            <Phone size={15} /> Ver líneas de atención
-          </button>
-        </div>
-
-        {/* ── Report document ── */}
-        <div style={{ flex: 1, padding: isMobile ? '24px 20px' : '32px 40px', overflowY: 'auto' }}>
+    <div style={card}>
+      <button
+        onClick={onToggle}
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+      >
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--color-text-tertiary)' }}>
+          Resumen del documento
+        </span>
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', color: 'var(--color-calm-500)' }}>
+          {open ? 'Ocultar ▲' : 'Ver ▼'}
+        </span>
+      </button>
+      <AnimatePresence>
+        {open && (
           <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.35 }}
-            style={{ background: 'white', borderRadius: 20, border: '1px solid var(--color-border-subtle)', boxShadow: '0 4px 32px rgba(0,0,0,0.06)', overflow: 'hidden' }}
+            initial={{ opacity: 0, height: 0, marginTop: 0 }}
+            animate={{ opacity: 1, height: 'auto', marginTop: 14 }}
+            exit={{ opacity: 0, height: 0, marginTop: 0 }}
+            style={{ overflow: 'hidden' }}
           >
-            {/* Document header */}
-            <div style={{ background: 'var(--color-text-primary)', padding: '24px 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ padding: '8px 12px', borderRadius: 8, background: 'var(--color-calm-50)', border: '1px solid var(--color-calm-200)' }}>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.6rem', color: 'var(--color-calm-600)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>Folio</div>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.82rem', color: 'var(--color-text-primary)', fontWeight: 600 }}>{folio || '…'}</div>
+              </div>
               <div>
-                <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: 700, color: 'white', letterSpacing: '-0.01em', marginBottom: 4 }}>
-                  ANCLA
-                </div>
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', color: 'rgba(255,255,255,0.55)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-                  Reporte de extorsión digital
-                </div>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.6rem', color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>Hash de integridad</div>
+                <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.64rem', color: 'var(--color-text-secondary)', wordBreak: 'break-all' }}>
+                  {hashHex ? `sha256:${hashHex.slice(0, 32)}…` : 'Calculando…'}
+                </code>
               </div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', fontWeight: 700, color: 'white', marginBottom: 2 }}>
-                  #{FOLIO}
-                </div>
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.62rem', color: 'rgba(255,255,255,0.5)' }}>
-                  {DATE}
-                </div>
-              </div>
-            </div>
-
-            <div style={{ padding: '28px 28px', display: 'flex', flexDirection: 'column', gap: 24 }}>
-              {/* Hash integrity */}
-              <div style={{ padding: '12px 16px', borderRadius: 10, background: 'var(--color-calm-50)', border: '1px solid var(--color-calm-200)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+              {allPatterns.length > 0 && (
                 <div>
-                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.6rem', color: 'var(--color-calm-600)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3 }}>
-                    Hash de integridad
-                  </div>
-                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.72rem', color: 'var(--color-text-primary)', wordBreak: 'break-all' }}>
-                    {HASH}
-                  </div>
-                </div>
-                <div style={{ padding: '4px 10px', borderRadius: 999, background: 'var(--color-calm-100)', border: '1px solid var(--color-calm-300)', fontFamily: 'var(--font-mono)', fontSize: '0.62rem', color: 'var(--color-calm-700)', whiteSpace: 'nowrap' }}>
-                  Verificado
-                </div>
-              </div>
-
-              {/* Fields */}
-              {[
-                { label: 'Plataforma', value: 'Instagram · WhatsApp' },
-                { label: 'Tipo', value: 'Sextorsión — amenaza de difusión' },
-                { label: 'Fecha inicio', value: '28 de abril de 2026' },
-                { label: 'Evidencia adjuntada', value: '6 capturas de pantalla · conversaciones completas' },
-              ].map(({ label, value }) => (
-                <div key={label} style={{ borderBottom: '1px solid var(--color-border-subtle)', paddingBottom: 16 }}>
-                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 5 }}>
-                    {label}
-                  </div>
-                  <div style={{ fontFamily: 'var(--font-body)', fontSize: '0.9rem', color: 'var(--color-text-primary)', fontWeight: 500 }}>
-                    {value}
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.6rem', color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Patrones</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                    {allPatterns.map((p) => (
+                      <span key={p} style={{ padding: '3px 10px', borderRadius: 999, fontSize: '0.75rem', fontFamily: 'var(--font-body)', background: 'var(--color-terra-100)', color: 'var(--color-terra-700)', border: '1px solid var(--color-terra-200)' }}>
+                        {labelFor(p)}
+                      </span>
+                    ))}
                   </div>
                 </div>
-              ))}
-
-              {/* Patterns */}
-              <div style={{ borderBottom: '1px solid var(--color-border-subtle)', paddingBottom: 16 }}>
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
-                  Patrones detectados por ANA
-                </div>
-                {[
-                  { n: '01', text: 'Love bombing acelerado — 3 semanas de escalada emocional intensa' },
-                  { n: '02', text: 'Solicitud progresiva de material íntimo con chantaje implícito' },
-                  { n: '03', text: 'Amenaza directa de difusión a contactos identificados' },
-                ].map(({ n, text }) => (
-                  <div key={n} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', marginBottom: 10 }}>
-                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', color: 'var(--color-text-tertiary)', marginTop: 2, flexShrink: 0 }}>{n}</div>
-                    <div style={{ fontFamily: 'var(--font-body)', fontSize: '0.85rem', color: 'var(--color-text-secondary)', lineHeight: 1.55 }}>{text}</div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Aggressor profile */}
-              <div style={{ borderBottom: '1px solid var(--color-border-subtle)', paddingBottom: 16 }}>
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
-                  Perfil del agresor
-                </div>
-                {[
-                  { k: 'Usuario', v: '@kevindiaz_mx (Instagram)' },
-                  { k: 'Tel. WhatsApp', v: '+52 55 XXXX XXXX' },
-                  { k: 'País estimado', v: 'México (IP aproximada)' },
-                ].map(({ k, v }) => (
-                  <div key={k} style={{ display: 'flex', gap: 16, marginBottom: 7 }}>
-                    <div style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--color-text-tertiary)', minWidth: 110 }}>{k}</div>
-                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: 'var(--color-text-primary)' }}>{v}</div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Actions taken */}
-              <div>
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
-                  Acciones ya tomadas
-                </div>
-                {[
-                  'Evidencia descargada y hasheada',
-                  'Perfil restringido en Instagram',
-                  'Hash subido a StopNCII.org',
-                ].map((action, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                    <CheckCircle size={14} color="var(--color-calm-500)" style={{ flexShrink: 0 }} />
-                    <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>{action}</span>
-                  </div>
-                ))}
-              </div>
-
-              {/* Footer stamp */}
-              <div style={{ marginTop: 8, padding: '14px 18px', borderRadius: 12, background: 'var(--color-gray-50)', border: '1px solid var(--color-border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.62rem', color: 'var(--color-text-tertiary)' }}>
-                  ANCLA #{FOLIO} · {DATE}
-                </div>
-                <a
-                  href="https://stopncii.org"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'var(--font-mono)', fontSize: '0.62rem', color: 'var(--color-calm-500)', textDecoration: 'none' }}
-                >
-                  <ExternalLink size={11} /> ancla.org
-                </a>
+              )}
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.62rem', color: 'var(--color-text-tertiary)', borderTop: '1px solid var(--color-border-subtle)', paddingTop: 8 }}>
+                {today} · ancla.vercel.app
               </div>
             </div>
           </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ── Inline error ──────────────────────────────────────────────────────────────
+function InlineError({ msg }: { msg: string }) {
+  if (!msg) return null;
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 7, padding: '10px 12px', borderRadius: 10, background: 'var(--color-terra-50)', border: '1px solid var(--color-terra-200)' }}>
+      <AlertTriangle size={13} color="var(--color-terra-500)" style={{ flexShrink: 0, marginTop: 2 }} />
+      <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--color-terra-700)', lineHeight: 1.5 }}>{msg}</span>
+    </div>
+  );
+}
+
+// ── Primary button ────────────────────────────────────────────────────────────
+function PrimaryBtn({ label, onClick, disabled, color = 'var(--color-calm-500)' }: {
+  label: string; onClick: () => void; disabled?: boolean; color?: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+        padding: '14px 20px', borderRadius: 14, width: '100%',
+        background: disabled ? 'var(--color-gray-300)' : color,
+        color: 'white', border: 'none',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        fontFamily: 'var(--font-body)', fontSize: '0.95rem', fontWeight: 700,
+        boxShadow: disabled ? 'none' : '0 2px 12px rgba(0,0,0,0.13)',
+        transition: 'all 200ms',
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+export default function ReportePage() {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+
+  const {
+    analysisPatterns, analysisResult, riskLevel, sessionToken,
+    folio: storedFolio, hashHex: storedHashHex, setReporteId,
+  } = useAnclaStore();
+
+  const [folio,   setFolio]   = useState(storedFolio);
+  const [hashHex, setHashHex] = useState(storedHashHex);
+
+  const allPatterns = Array.from(new Set([
+    ...analysisPatterns,
+    ...(analysisResult?.patrones_detectados ?? []),
+  ]));
+  const today = new Date().toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' });
+
+  useEffect(() => {
+    if (folio && hashHex) return;
+    computeHash(sessionToken + analysisPatterns.join(',')).then(({ folio: f, hex }) => {
+      setFolio(f); setHashHex(hex);
+    });
+  }, [sessionToken, analysisPatterns, folio, hashHex]);
+
+  // ── Step state ──────────────────────────────────────────────────────────────
+  const [step,      setStep]      = useState<0 | 1 | 2 | 3>(0);
+  const [direction, setDirection] = useState(1);
+  const [ruta,      setRuta]      = useState<'privado' | 'legal' | null>(null);
+
+  // ── Form fields ─────────────────────────────────────────────────────────────
+  const [plataforma,       setPlataforma]       = useState('');
+  const [identificador,    setIdentificador]    = useState('');
+  const [emailJoven,       setEmailJoven]       = useState('');
+  const [nombreFamiliar,   setNombreFamiliar]   = useState('');
+  const [contactoFamiliar, setContactoFamiliar] = useState('');
+  const [summaryOpen,      setSummaryOpen]      = useState(false);
+  const [error,            setError]            = useState('');
+
+  function goTo(next: 0 | 1 | 2 | 3) {
+    setDirection(next > step ? 1 : -1);
+    setError('');
+    setStep(next);
+  }
+
+  function pickRoute(r: 'privado' | 'legal') {
+    setRuta(r);
+    goTo(1);
+  }
+
+  function handleStep1Continue() {
+    if (!plataforma) { setError('Selecciona la plataforma donde ocurrió la situación.'); return; }
+    goTo(2);
+  }
+
+  function handleSend() {
+    if (ruta === 'legal' && !contactoFamiliar.trim()) {
+      setError('Ingresa el contacto de tu familiar para continuar.');
+      return;
+    }
+    setError('');
+
+    startTransition(async () => {
+      try {
+        const result = await submitReport({
+          folio,
+          hashSha256: hashHex ? `sha256:${hashHex}` : `sha256:${sessionToken}`,
+          patterns: allPatterns,
+          plataforma,
+          identificador: identificador.trim() || undefined,
+          tipoReporte: ruta!,
+          contacto: ruta === 'privado' ? (emailJoven.trim() || undefined) : undefined,
+          contactoFamiliar: ruta === 'legal' ? contactoFamiliar.trim() : undefined,
+          nombreFamiliar: nombreFamiliar.trim() || undefined,
+          sessionToken,
+        });
+        setReporteId(result.reporteId);
+        goTo(3);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : '';
+        if (msg.includes('duplicate') || msg.includes('unique')) {
+          goTo(3);
+        } else {
+          setError('No pudimos enviar tu reporte. Intenta de nuevo en unos segundos.');
+          console.error('[submitReport]', msg);
+        }
+      }
+    });
+  }
+
+  // ── Top bar labels ───────────────────────────────────────────────────────────
+  const topTitle = [
+    'Tu denuncia',
+    'Detalles del caso',
+    ruta === 'legal' ? 'Datos del familiar' : 'Confirmar y enviar',
+    ruta === 'legal' ? 'Ayuda en camino' : 'Reporte guardado',
+  ][step];
+
+  const stepVariants = {
+    enter:  (d: number) => ({ opacity: 0, x: d * 28 }),
+    center: { opacity: 1, x: 0 },
+    exit:   (d: number) => ({ opacity: 0, x: d * -28 }),
+  };
+
+  // ── Shared step wrapper ──────────────────────────────────────────────────────
+  const wrap = (content: React.ReactNode) => (
+    <div style={{ flex: 1, padding: '28px 20px 40px', maxWidth: 540, margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {content}
+    </div>
+  );
+
+  return (
+    <>
+      <style>{`
+        @media print {
+          #reporte-app  { display: none !important; }
+          #reporte-print { display: block !important; padding: 28px; font-family: serif; }
+        }
+        #reporte-print { display: none; }
+      `}</style>
+
+      <div id="reporte-app" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--color-background)' }}>
+
+        {/* Top bar */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', height: 56, borderBottom: '1px solid var(--color-border-subtle)', background: 'rgba(250,249,247,0.95)', backdropFilter: 'blur(12px)', flexShrink: 0 }}>
+          <button
+            onClick={() => step === 0 ? router.push('/joven/analisis') : goTo((step - 1) as 0 | 1 | 2 | 3)}
+            style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-secondary)', fontFamily: 'var(--font-body)', fontSize: '0.82rem', padding: 0, opacity: step === 3 ? 0 : 1, pointerEvents: step === 3 ? 'none' : 'auto' }}
+          >
+            <ChevronLeft size={16} /> {step === 0 ? 'Análisis' : 'Atrás'}
+          </button>
+          <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.9rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>
+            {topTitle}
+          </div>
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.68rem', color: 'var(--color-text-tertiary)', letterSpacing: '0.05em', minWidth: 48, textAlign: 'right' }}>
+            {step === 3 && folio ? `#${folio}` : (step > 0 && step < 3 ? `${step}/2` : '')}
+          </div>
+        </div>
+
+        {/* Progress bar (steps 1–2 only) */}
+        {step > 0 && step < 3 && (
+          <div style={{ height: 2, background: 'var(--color-border-subtle)', flexShrink: 0 }}>
+            <motion.div
+              animate={{ width: `${(step / 2) * 100}%` }}
+              transition={{ duration: 0.35, ease: 'easeOut' }}
+              style={{ height: '100%', background: 'var(--color-calm-400)' }}
+            />
+          </div>
+        )}
+
+        {/* Animated step content */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowX: 'hidden' }}>
+          <AnimatePresence mode="wait" custom={direction}>
+            <motion.div
+              key={step}
+              custom={direction}
+              variants={stepVariants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={{ duration: 0.2 }}
+              style={{ flex: 1, display: 'flex', flexDirection: 'column' }}
+            >
+
+              {/* ── STEP 0: Route selection ── */}
+              {step === 0 && wrap(
+                <>
+                  <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.92rem', color: 'var(--color-text-secondary)', lineHeight: 1.65, marginBottom: 4 }}>
+                    Antes de enviar tu caso, dinos qué tipo de ayuda necesitas.
+                  </p>
+
+                  {/* Legal — recommended */}
+                  <button
+                    onClick={() => pickRoute('legal')}
+                    style={{ ...card, border: '2px solid var(--color-calm-300)', background: 'var(--color-calm-50)', cursor: 'pointer', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 10 }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--color-calm-100)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <Users size={15} color="var(--color-calm-600)" />
+                        </div>
+                        <span style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', fontWeight: 600, color: 'var(--color-calm-800)' }}>
+                          Quiero que alguien me ayude
+                        </span>
+                      </div>
+                      <span style={{ padding: '3px 10px', borderRadius: 999, background: 'var(--color-calm-200)', fontFamily: 'var(--font-body)', fontSize: '0.7rem', fontWeight: 600, color: 'var(--color-calm-700)', whiteSpace: 'nowrap' }}>
+                        Recomendado
+                      </span>
+                    </div>
+                    <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.85rem', color: 'var(--color-calm-700)', lineHeight: 1.6, margin: 0 }}>
+                      Un agente de ANCLA va a hablar con tu familiar y juntos buscan cómo actuar. Vamos con cuidado — sabemos que esta conversación puede ser difícil.
+                    </p>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'var(--color-calm-600)', fontFamily: 'var(--font-body)', fontSize: '0.82rem', fontWeight: 600 }}>
+                      Elegir esta opción <ArrowRight size={14} />
+                    </div>
+                  </button>
+
+                  {/* Private */}
+                  <button
+                    onClick={() => pickRoute('privado')}
+                    style={{ ...card, cursor: 'pointer', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 10 }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--color-gray-100)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Shield size={15} color="var(--color-text-tertiary)" />
+                      </div>
+                      <span style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>
+                        Solo quiero dejar registro
+                      </span>
+                    </div>
+                    <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.85rem', color: 'var(--color-text-secondary)', lineHeight: 1.6, margin: 0 }}>
+                      Tu caso queda guardado de forma segura. Nadie te contacta. Puedes usar el folio después si en algún momento cambias de opinión.
+                    </p>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-body)', fontSize: '0.82rem' }}>
+                      Elegir esta opción <ArrowRight size={14} />
+                    </div>
+                  </button>
+                </>
+              )}
+
+              {/* ── STEP 1: Details ── */}
+              {step === 1 && wrap(
+                <>
+                  {/* Platform */}
+                  <div style={card}>
+                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--color-text-tertiary)', marginBottom: 10 }}>
+                      ¿En qué plataforma ocurrió? <span style={{ color: 'var(--color-terra-500)' }}>*</span>
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {PLATFORMS.map((p) => (
+                        <button
+                          key={p}
+                          onClick={() => setPlataforma(p)}
+                          style={{
+                            padding: '6px 13px', borderRadius: 999, fontSize: '0.8rem',
+                            fontFamily: 'var(--font-body)', cursor: 'pointer', transition: 'all 150ms',
+                            border: `1.5px solid ${plataforma === p ? 'var(--color-calm-400)' : 'var(--color-border)'}`,
+                            background: plataforma === p ? 'var(--color-calm-50)' : 'transparent',
+                            color: plataforma === p ? 'var(--color-calm-700)' : 'var(--color-text-secondary)',
+                          }}
+                        >
+                          {p}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Identifier */}
+                  <div style={card}>
+                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--color-text-tertiary)', marginBottom: 8 }}>
+                      Usuario o identificador del agresor (opcional)
+                    </div>
+                    <input
+                      value={identificador}
+                      onChange={(e) => setIdentificador(e.target.value)}
+                      placeholder="@usuario, número de teléfono, etc."
+                      style={{ width: '100%', padding: '9px 13px', borderRadius: 10, border: '1.5px solid var(--color-border)', background: 'var(--color-gray-50)', fontFamily: 'var(--font-body)', fontSize: '0.85rem', outline: 'none', color: 'var(--color-text-primary)', boxSizing: 'border-box' }}
+                    />
+                  </div>
+
+                  <InlineError msg={error} />
+
+                  <PrimaryBtn label="Continuar →" onClick={handleStep1Continue} />
+                </>
+              )}
+
+              {/* ── STEP 2a: Privado confirm ── */}
+              {step === 2 && ruta === 'privado' && wrap(
+                <>
+                  <div style={{ ...card, background: 'var(--color-gray-50)', border: '1px solid var(--color-border-subtle)' }}>
+                    <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.9rem', color: 'var(--color-text-secondary)', lineHeight: 1.65, margin: 0 }}>
+                      Tu caso va a quedar registrado de forma segura. Nadie de ANCLA va a contactar a nadie — solo usamos tu reporte para identificar patrones y proteger a más jóvenes.
+                    </p>
+                  </div>
+
+                  <div style={card}>
+                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--color-text-tertiary)', marginBottom: 6 }}>
+                      Tu correo (opcional)
+                    </div>
+                    <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.78rem', color: 'var(--color-text-tertiary)', lineHeight: 1.55, marginBottom: 10 }}>
+                      Si en algún momento quieres que te escribamos.
+                    </p>
+                    <input
+                      value={emailJoven}
+                      onChange={(e) => setEmailJoven(e.target.value)}
+                      placeholder="tu@correo.com"
+                      type="email"
+                      style={{ width: '100%', padding: '9px 13px', borderRadius: 10, border: '1.5px solid var(--color-border)', background: 'var(--color-gray-50)', fontFamily: 'var(--font-body)', fontSize: '0.85rem', outline: 'none', color: 'var(--color-text-primary)', boxSizing: 'border-box' }}
+                    />
+                  </div>
+
+                  <DocSummary
+                    open={summaryOpen} onToggle={() => setSummaryOpen((o) => !o)}
+                    folio={folio} hashHex={hashHex} allPatterns={allPatterns} today={today}
+                  />
+
+                  <InlineError msg={error} />
+
+                  <PrimaryBtn
+                    label={isPending ? 'Guardando…' : 'Guardar mi reporte'}
+                    onClick={handleSend}
+                    disabled={isPending}
+                    color="var(--color-text-primary)"
+                  />
+
+                  <button
+                    onClick={() => window.print()}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '10px 20px', borderRadius: 999, background: 'transparent', border: '1px solid var(--color-border)', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}
+                  >
+                    <Download size={13} /> Guardar copia para tus registros
+                  </button>
+                </>
+              )}
+
+              {/* ── STEP 2b: Legal family contact ── */}
+              {step === 2 && ruta === 'legal' && wrap(
+                <>
+                  <div style={{ ...card, background: 'var(--color-calm-50)', border: '1px solid var(--color-calm-200)' }}>
+                    <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.9rem', color: 'var(--color-calm-800)', lineHeight: 1.65, margin: 0 }}>
+                      Un agente de ANCLA va a hablar con tu familiar. Vamos con cuidado — sabemos que esta conversación puede ser difícil y lo manejamos con respeto.
+                    </p>
+                  </div>
+
+                  <div style={card}>
+                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--color-text-tertiary)', marginBottom: 8 }}>
+                      ¿Cómo se llama tu familiar? (opcional)
+                    </div>
+                    <input
+                      value={nombreFamiliar}
+                      onChange={(e) => setNombreFamiliar(e.target.value)}
+                      placeholder="mamá, papá, tío Juan…"
+                      style={{ width: '100%', padding: '9px 13px', borderRadius: 10, border: '1.5px solid var(--color-border)', background: 'var(--color-gray-50)', fontFamily: 'var(--font-body)', fontSize: '0.85rem', outline: 'none', color: 'var(--color-text-primary)', boxSizing: 'border-box' }}
+                    />
+                  </div>
+
+                  <div style={card}>
+                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--color-text-tertiary)', marginBottom: 6 }}>
+                      ¿Cómo podemos contactarlos? <span style={{ color: 'var(--color-terra-500)' }}>*</span>
+                    </div>
+                    <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.78rem', color: 'var(--color-text-tertiary)', lineHeight: 1.55, marginBottom: 10 }}>
+                      Correo electrónico o número de teléfono. Solo lo usamos para que el agente de ANCLA se ponga en contacto.
+                    </p>
+                    <input
+                      value={contactoFamiliar}
+                      onChange={(e) => { setContactoFamiliar(e.target.value); if (error) setError(''); }}
+                      placeholder="correo@ejemplo.com o 55 1234 5678"
+                      style={{ width: '100%', padding: '9px 13px', borderRadius: 10, border: `1.5px solid ${error ? 'var(--color-terra-400)' : 'var(--color-border)'}`, background: 'var(--color-gray-50)', fontFamily: 'var(--font-body)', fontSize: '0.85rem', outline: 'none', color: 'var(--color-text-primary)', boxSizing: 'border-box', transition: 'border-color 150ms' }}
+                    />
+                  </div>
+
+                  <DocSummary
+                    open={summaryOpen} onToggle={() => setSummaryOpen((o) => !o)}
+                    folio={folio} hashHex={hashHex} allPatterns={allPatterns} today={today}
+                  />
+
+                  <InlineError msg={error} />
+
+                  <PrimaryBtn
+                    label={isPending ? 'Enviando…' : 'Pedir ayuda de ANCLA'}
+                    onClick={handleSend}
+                    disabled={isPending}
+                    color="var(--color-calm-500)"
+                  />
+
+                  <button
+                    onClick={() => window.print()}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '10px 20px', borderRadius: 999, background: 'transparent', border: '1px solid var(--color-border)', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}
+                  >
+                    <Download size={13} /> Guardar copia para tus registros
+                  </button>
+                </>
+              )}
+
+              {/* ── STEP 3: Success ── */}
+              {step === 3 && (
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 24px', textAlign: 'center' }}>
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.85 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ type: 'spring', stiffness: 260, damping: 22 }}
+                    style={{ maxWidth: 420, width: '100%' }}
+                  >
+                    <div style={{ width: 76, height: 76, borderRadius: '50%', background: ruta === 'legal' ? 'var(--color-calm-50)' : 'var(--color-gray-100)', border: `2px solid ${ruta === 'legal' ? 'var(--color-calm-300)' : 'var(--color-border)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 22px' }}>
+                      <CheckCircle size={36} color={ruta === 'legal' ? 'var(--color-calm-500)' : 'var(--color-text-secondary)'} />
+                    </div>
+
+                    <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.3rem, 4vw, 1.8rem)', fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 12 }}>
+                      {ruta === 'legal' ? 'Ayuda en camino' : 'Tu caso quedó registrado'}
+                    </h1>
+
+                    {ruta === 'legal' ? (
+                      <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.92rem', color: 'var(--color-text-secondary)', lineHeight: 1.65, marginBottom: 16 }}>
+                        El equipo de ANCLA ya tiene tu caso. Pronto un agente va a hablar con{' '}
+                        {nombreFamiliar.trim() ? <strong>{nombreFamiliar.trim()}</strong> : 'tu familiar'} con cuidado y respeto.
+                      </p>
+                    ) : (
+                      <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.92rem', color: 'var(--color-text-secondary)', lineHeight: 1.65, marginBottom: 16 }}>
+                        Nadie va a contactar a nadie. Tu caso ya está guardado de forma segura y va a ayudar a proteger a otros jóvenes.
+                      </p>
+                    )}
+
+                    {/* Folio */}
+                    <div style={{ display: 'inline-block', padding: '10px 20px', borderRadius: 12, background: 'white', border: '1px solid var(--color-border-subtle)', boxShadow: 'var(--shadow-sm)', marginBottom: 16 }}>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.62rem', color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3 }}>Tu folio</div>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: '1.1rem', fontWeight: 700, color: 'var(--color-text-primary)', letterSpacing: '0.05em' }}>{folio}</div>
+                    </div>
+
+                    <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.82rem', color: 'var(--color-text-tertiary)', lineHeight: 1.6, marginBottom: 36 }}>
+                      {ruta === 'legal'
+                        ? 'Guarda este folio. Úsalo para dar seguimiento si lo necesitas.'
+                        : 'Guarda este folio. Si en algún momento decides dar el siguiente paso, seguirá siendo tuyo.'}
+                    </p>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      <button
+                        onClick={() => router.push('/joven/lineas')}
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '13px 28px', borderRadius: 999, background: 'var(--color-terra-500)', color: 'white', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '0.9rem', fontWeight: 600 }}
+                      >
+                        <Phone size={16} /> Ver líneas de atención
+                      </button>
+                      <button
+                        onClick={() => router.push('/joven/regulacion')}
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '13px 28px', borderRadius: 999, background: 'white', color: 'var(--color-text-secondary)', border: '1.5px solid var(--color-border)', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '0.9rem' }}
+                      >
+                        Métodos para calmarme
+                      </button>
+                    </div>
+                  </motion.div>
+                </div>
+              )}
+
+            </motion.div>
+          </AnimatePresence>
         </div>
       </div>
-    </div>
+
+      {/* Print-only document (hidden, shown via @media print) */}
+      <div id="reporte-print">
+        <h1>ANCLA — {ruta === 'legal' ? 'Denuncia con seguimiento' : 'Reporte privado'} #{folio}</h1>
+        <p>Fecha: {today}</p>
+        <p>Hash de integridad: sha256:{hashHex}</p>
+        <p>Plataforma: {plataforma || 'No especificada'}</p>
+        <p>Tipo: {deriveAbuseType(allPatterns)}</p>
+        <p>Tipo de reporte: {ruta === 'legal' ? 'Seguimiento legal' : 'Reporte privado'}</p>
+        {allPatterns.length > 0 && (
+          <>
+            <p>Patrones detectados:</p>
+            <ul>{allPatterns.map((p) => <li key={p}>{labelFor(p)}</li>)}</ul>
+          </>
+        )}
+        {analysisResult?.resumen_comportamiento && (
+          <p>Resumen: {analysisResult.resumen_comportamiento}</p>
+        )}
+        <p>ancla.vercel.app</p>
+      </div>
+    </>
   );
 }

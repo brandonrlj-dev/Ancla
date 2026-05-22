@@ -109,21 +109,23 @@ async function geminiEmergencyGate(userInput: string): Promise<boolean> {
       generationConfig,
     })
 
-    const prompt = `Eres un sistema de seguridad para menores en crisis. Evalúa si el mensaje indica intención de hacerse daño o suicidio.
+    const prompt = `Eres un sistema de seguridad para menores en crisis. Evalúa si el mensaje indica INTENCIÓN EXPLÍCITA de hacerse daño físico o suicidio.
 
-REGLA: La INTENCIÓN es suficiente. No es necesario que esté ocurriendo ahora. Ante la duda, responde true.
+REGLA CRÍTICA: El threshold es CONSERVADOR. Ante la duda, responde false. Un falso positivo traumatiza a alguien innecesariamente. Solo responde true con intención explícita y directa, nunca por expresiones metafóricas o coloquiales.
 
-Ejemplos VERDADEROS: "quiero hacerme daño", "me quiero matar", "quiero morir", "ya no quiero vivir"
-Ejemplos FALSOS: "me siento mal", "estoy triste", "me amenazaron", "tengo miedo"
+EXPRESIONES MEXICANAS QUE NO SON EMERGENCIA (responde false):
+"ya fue todo", "ya estuvo", "ya terminé", "ya valió", "me muero de vergüenza", "te mato de risa", "me está matando el calor", "ya me cargó el payaso", "me quiero morir de pena", "estoy harta/o"
+
+Ejemplos VERDADEROS (responde true): "quiero hacerme daño", "me quiero matar" con contexto de crisis real, "quiero suicidarme", "no quiero seguir viviendo"
+Ejemplos FALSOS (responde false): "me siento mal", "estoy triste", "me amenazaron", "tengo miedo", "ya fue todo", "ya estuvo"
 
 Mensaje: "${userInput.slice(0, 400)}"
 
-No uses markdown. No agregues texto antes ni después. Responde ÚNICAMENTE con el JSON crudo: {"emergency":true} o {"emergency":false}`
+No uses markdown. Responde ÚNICAMENTE con el JSON crudo: {"emergency":true} o {"emergency":false}`
 
     const result = await geminiModel.generateContent(prompt)
 
     const text = result.response.text().trim()
-    console.log('[Gemini raw response]', text)
     const jsonMatch = text.match(/\{[\s\S]*\}/)
     const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : text) as { emergency: boolean }
     return parsed.emergency === true
@@ -147,6 +149,7 @@ export async function sendMessageToAna(params: {
   userInput: string
   sessionToken: string
   mode: 'escudo' | 'salvavidas'
+  captureText?: string  // OCR text from screenshot — never the image itself
 }): Promise<SendMessageResult> {
   const headersList = await headers()
   const ip = headersList.get('x-forwarded-for')?.split(',')[0].trim() ?? '127.0.0.1'
@@ -187,8 +190,12 @@ export async function sendMessageToAna(params: {
     content: m.content,
   }))
 
-  // Append the new user message
-  claudeMessages.push({ role: 'user', content: params.userInput })
+  // Build the final user turn — include screenshot text as context if present
+  const userTurn = params.captureText
+    ? `${params.userInput}\n\n[El joven compartió una captura de pantalla. Texto extraído por OCR — considéralo para la evaluación del incidente, pero sigue el protocolo de 4 pasos: pregunta contexto antes de concluir nada sobre el contenido]:\n${params.captureText}`
+    : params.userInput
+
+  claudeMessages.push({ role: 'user', content: userTurn })
 
   const claudeResponse = await anthropic.messages.create({
     model: 'claude-sonnet-4-5',

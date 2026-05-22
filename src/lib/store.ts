@@ -11,6 +11,13 @@ export interface ChatMessage {
   timestamp: Date;
 }
 
+export interface AnalysisResult {
+  patrones_detectados: string[];
+  nivel_riesgo: number;
+  fase_grooming: number;
+  resumen_comportamiento: string;
+}
+
 interface AnclaStore {
   /* ANA avatar state */
   anaState: AnaState;
@@ -46,9 +53,28 @@ interface AnclaStore {
   touchActivity: () => void;
   clearSession: () => void;
 
-  /* Analysis results (from completed analysis job) */
+  /* Analysis patterns — accumulated across conversation, never sent to server */
   analysisPatterns: string[];
   setAnalysisPatterns: (p: string[]) => void;
+  addAnalysisPatterns: (p: string[]) => void; // merges without duplicates
+
+  /* Deep analysis job (Phase 2) */
+  analysisJobId: string | null;
+  setAnalysisJobId: (id: string | null) => void;
+  analysisResult: AnalysisResult | null;
+  setAnalysisResult: (r: AnalysisResult | null) => void;
+
+  /* OCR text extracted from screenshots — images never leave device */
+  ocrText: string | null;
+  setOcrText: (t: string | null) => void;
+
+  /* Report identity — computed once on analisis page, read on reporte page */
+  folio: string;
+  setFolio: (f: string) => void;
+  hashHex: string;
+  setHashHex: (h: string) => void;
+  reporteId: string | null;
+  setReporteId: (id: string | null) => void;
 }
 
 export const useAnclaStore = create<AnclaStore>((set) => ({
@@ -74,7 +100,6 @@ export const useAnclaStore = create<AnclaStore>((set) => ({
   jumperOpen: false,
   setJumperOpen: (o) => set({ jumperOpen: o }),
 
-  /* Session is ephemeral — UUID generated once per module load (client-side) */
   sessionToken: typeof crypto !== 'undefined' ? crypto.randomUUID() : 'server-ssr',
   lastActivity: null,
   touchActivity: () => set({ lastActivity: Date.now() }),
@@ -86,8 +111,34 @@ export const useAnclaStore = create<AnclaStore>((set) => ({
       riskLevel: 0,
       anaState: 'listening',
       analysisPatterns: [],
+      analysisJobId: null,
+      analysisResult: null,
+      ocrText: null,
+      folio: '',
+      hashHex: '',
+      reporteId: null,
     }),
 
   analysisPatterns: [],
   setAnalysisPatterns: (p) => set({ analysisPatterns: p }),
+  addAnalysisPatterns: (p) =>
+    set((state) => ({
+      analysisPatterns: Array.from(new Set([...state.analysisPatterns, ...p])),
+    })),
+
+  analysisJobId: null,
+  setAnalysisJobId: (id) => set({ analysisJobId: id }),
+
+  analysisResult: null,
+  setAnalysisResult: (r) => set({ analysisResult: r }),
+
+  ocrText: null,
+  setOcrText: (t) => set({ ocrText: t }),
+
+  folio: '',
+  setFolio: (f) => set({ folio: f }),
+  hashHex: '',
+  setHashHex: (h) => set({ hashHex: h }),
+  reporteId: null,
+  setReporteId: (id) => set({ reporteId: id }),
 }));

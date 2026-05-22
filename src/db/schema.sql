@@ -105,6 +105,14 @@ create table reportes_directos (
   -- AES-256-GCM encrypted email. Format: "base64(iv):base64(ciphertext)"
   -- Null if victim chose not to share contact info.
   contacto_cifrado text,
+  -- AES-256-GCM encrypted JSON: {nombre, contacto}. Only populated in ruta legal.
+  contacto_familiar_cifrado text,
+  -- 'privado' = just a record, no one is contacted
+  -- 'legal'   = ANCLA agent contacts the family and opens a formal process
+  tipo_reporte     text             not null default 'privado'
+                     check (tipo_reporte in ('privado', 'legal')),
+  -- NULL = not asked (privado), TRUE = implicit (legal — youth provided family contact)
+  adulto_al_tanto  boolean          default null,
   alerta_id        uuid             references alertas(id) on delete set null,
   estado           estado_reporte_t not null default 'nuevo',
   created_at       timestamptz      not null default now(),
@@ -389,6 +397,23 @@ begin
   end if;
 end;
 $$;
+
+-- ============================================================
+-- GRANTS: service_role needs explicit table-level grants
+-- (RLS bypass doesn't automatically imply table permission)
+-- ============================================================
+
+grant all on table public.perfiles_agresores  to service_role;
+grant all on table public.alertas             to service_role;
+grant all on table public.reportes_directos   to service_role;
+grant all on table public.vinculaciones       to service_role;
+grant all on table public.jobs_analisis       to service_role;
+grant all on table public.audit_log           to service_role;
+grant all on table public.config_plataformas  to service_role;
+grant all on table public.push_suscripciones  to service_role;
+
+-- sequences (needed for INSERT on tables with generated IDs)
+grant all on all sequences in schema public to service_role;
 
 -- ============================================================
 -- REALTIME: enable for police dashboard live updates

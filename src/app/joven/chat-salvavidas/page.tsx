@@ -6,10 +6,11 @@ import { useRouter } from 'next/navigation';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import AnaAvatar from '@/components/ana/AnaAvatar';
 import AnaIntro from '@/components/ana/AnaIntro';
-import { Send, Paperclip, Phone, X, ArrowRight } from 'lucide-react';
+import { Send, Paperclip, Phone, X, ArrowRight, ImagePlus } from 'lucide-react';
 import { useAnclaStore } from '@/lib/store';
 import { useInactivityTimer } from '@/hooks/useInactivityTimer';
 import { sendMessageToAna } from '@/actions/ana';
+import { startAnalysisJob } from '@/actions/analysis';
 
 const ANA_GREETING_SALVAVIDAS =
   'Estoy aquí. Antes de nada — ¿estás en un lugar físicamente seguro ahora mismo?';
@@ -27,16 +28,24 @@ export default function ChatSalvavidasPage() {
     setRiskLevel,
     sessionToken,
     touchActivity,
-    setAnalysisPatterns,
+    addAnalysisPatterns,
+    analysisJobId,
+    setAnalysisJobId,
+    setOcrText,
   } = useAnclaStore();
 
-  const [showIntro, setShowIntro] = useState(true);
-  const [stabilized, setStabilized] = useState(false);
-  const [input, setInput] = useState('');
-  const [showCTA, setShowCTA] = useState(false);
+  const [showIntro, setShowIntro]     = useState(true);
+  const [stabilized, setStabilized]   = useState(false);
+  const [input, setInput]             = useState('');
+  const [showCTA, setShowCTA]         = useState(false);
   const [isEmergency, setIsEmergency] = useState(false);
-  const [isPending, startTransition] = useTransition();
+  const [isOcrRunning, setIsOcrRunning]       = useState(false);
+  const [ocrLabel, setOcrLabel]               = useState<string | null>(null);
+  const [pendingImage, setPendingImage]       = useState<File | null>(null);
+  const [pendingImageUrl, setPendingImageUrl] = useState<string | null>(null);
+  const [isPending, startTransition]          = useTransition();
   const bodyRef = useRef<HTMLDivElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   useInactivityTimer();
 
@@ -57,36 +66,52 @@ export default function ChatSalvavidasPage() {
     bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight, behavior: 'smooth' });
   }, [chatMessages, isPending]);
 
-  function handleSend() {
+  async function handleSend() {
     const text = input.trim();
-    if (!text || isPending) return;
+    if (!text && !pendingImage) return;
+    if (isPending || isOcrRunning) return;
+
     setInput('');
 
-    addChatMessage({
-      id: crypto.randomUUID(),
-      role: 'user',
-      content: text,
-      timestamp: new Date(),
-    });
+    const imageFile = pendingImage ?? null;
+    if (imageFile) clearPendingImage();
+
+    const displayContent = text
+      ? text + (imageFile ? ' 📎' : '')
+      : '📎 Adjunté una captura de pantalla';
+    addChatMessage({ id: crypto.randomUUID(), role: 'user', content: displayContent, timestamp: new Date() });
     touchActivity();
     setAnaState('talking');
+
+    let captureText = '';
+    if (imageFile) {
+      setIsOcrRunning(true);
+      setOcrLabel('Leyendo captura…');
+      try {
+        const { extractTextFromImage } = await import('@/lib/ocr');
+        captureText = await extractTextFromImage(imageFile);
+        setOcrText(captureText);
+        const wc = captureText.split(/\s+/).filter(Boolean).length;
+        setOcrLabel(`Captura leída · ${wc} palabras`);
+      } catch {
+        setOcrLabel('No se pudo leer la imagen.');
+      } finally {
+        setIsOcrRunning(false);
+      }
+    }
 
     startTransition(async () => {
       try {
         const result = await sendMessageToAna({
-          messages: chatMessages,
-          userInput: text,
+          messages: useAnclaStore.getState().chatMessages,
+          userInput: text || '(El joven compartió una captura de pantalla)',
           sessionToken,
           mode: 'salvavidas',
+          captureText: captureText || undefined,
         });
 
-        addChatMessage({
-          id: crypto.randomUUID(),
-          role: 'ana',
-          content: result.response,
-          timestamp: new Date(),
-        });
-
+        addChatMessage({ id: crypto.randomUUID(), role: 'ana', content: result.response, timestamp: new Date() });
+        setOcrLabel(null);
         setRiskLevel(Math.min(100, Math.max(0, riskLevel + result.riskDelta)));
 
         if (result.isEmergency) {
@@ -96,15 +121,23 @@ export default function ChatSalvavidasPage() {
           setAnaState('validating');
         }
 
-        if (result.newPatterns.length > 0) setAnalysisPatterns(result.newPatterns);
-        if (result.sugerirAnalisis) setShowCTA(true);
+        if (result.newPatterns.length > 0) addAnalysisPatterns(result.newPatterns);
+
+        if (result.sugerirAnalisis) {
+          setShowCTA(true);
+          const textForJob = captureText || useAnclaStore.getState().ocrText || '';
+          if (textForJob) {
+            const context = `Nivel de riesgo: ${riskLevel}/100. Mensajes: ${chatMessages.length}. Modo: Salvavidas.`;
+            try {
+              const { jobId } = await startAnalysisJob({ ocrText: textForJob, conversationContext: context, sessionToken });
+              setAnalysisJobId(jobId);
+            } catch (err) {
+              console.error('[chat-sv] startAnalysisJob:', err);
+            }
+          }
+        }
       } catch {
-        addChatMessage({
-          id: crypto.randomUUID(),
-          role: 'ana',
-          content: 'Hubo un problema de conexión. Sigo aquí — intenta de nuevo.',
-          timestamp: new Date(),
-        });
+        addChatMessage({ id: crypto.randomUUID(), role: 'ana', content: 'Hubo un problema de conexión. Sigo aquí — intenta de nuevo.', timestamp: new Date() });
         setAnaState('listening');
       }
     });
@@ -114,6 +147,39 @@ export default function ChatSalvavidasPage() {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
+    }
+  }
+
+  function setPendingFile(file: File) {
+    if (pendingImageUrl) URL.revokeObjectURL(pendingImageUrl);
+    setPendingImage(file);
+    setPendingImageUrl(URL.createObjectURL(file));
+  }
+
+  function clearPendingImage() {
+    if (pendingImageUrl) URL.revokeObjectURL(pendingImageUrl);
+    setPendingImage(null);
+    setPendingImageUrl(null);
+  }
+
+
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    setPendingFile(file);
+  }
+
+  function handleInputPaste(e: React.ClipboardEvent<HTMLInputElement>) {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of Array.from(items)) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (file) setPendingFile(file);
+        return;
+      }
     }
   }
 
@@ -266,6 +332,34 @@ export default function ChatSalvavidasPage() {
           )}
         </AnimatePresence>
 
+        {/* Image preview */}
+        <AnimatePresence>
+          {pendingImage && pendingImageUrl && (
+            <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+              style={{ padding: '8px 16px 0', background: 'white', borderTop: '1px solid var(--color-border-subtle)', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+              <div style={{ position: 'relative', flexShrink: 0 }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={pendingImageUrl} alt="Captura pendiente" style={{ height: 56, width: 'auto', borderRadius: 8, border: '1px solid var(--color-border)', objectFit: 'cover', display: 'block' }} />
+                <button onClick={clearPendingImage}
+                  style={{ position: 'absolute', top: -6, right: -6, width: 18, height: 18, borderRadius: '50%', background: 'var(--color-text-primary)', border: 'none', cursor: 'pointer', color: 'white', fontSize: '0.65rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+              </div>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.78rem', color: 'var(--color-text-tertiary)' }}>
+                Captura lista · presiona enviar para procesar
+              </span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* OCR status chip */}
+        <AnimatePresence>
+          {ocrLabel && (
+            <motion.div key="ocr" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+              style={{ alignSelf: 'center', padding: '5px 12px', background: 'var(--color-terra-50)', border: '1px solid var(--color-terra-200)', borderRadius: 99, fontSize: '0.72rem', fontFamily: 'var(--font-mono)', color: 'var(--color-terra-600)' }}>
+              {ocrLabel}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* CTA */}
         <AnimatePresence>
           {showCTA && (
@@ -284,26 +378,33 @@ export default function ChatSalvavidasPage() {
 
       {/* Input row */}
       <div style={{ padding: '10px 16px 14px', borderTop: '1px solid var(--color-border-subtle)', background: 'white', display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+        <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFileSelect} />
         <button
-          title="Adjuntar captura (disponible en el análisis)"
-          style={{ width: 38, height: 38, borderRadius: '50%', background: 'var(--color-gray-100)', border: 'none', cursor: 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, opacity: 0.5 }}
+          onClick={() => fileRef.current?.click()}
+          disabled={isOcrRunning || isPending}
+          title={ocrLabel ?? 'Adjuntar captura de pantalla'}
+          style={{ width: 38, height: 38, borderRadius: '50%', background: isOcrRunning ? 'var(--color-terra-50)' : 'var(--color-gray-100)', border: isOcrRunning ? '1px solid var(--color-terra-200)' : 'none', cursor: isOcrRunning ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 200ms' }}
         >
-          <Paperclip size={16} color="var(--color-text-tertiary)" />
+          {isOcrRunning
+            ? <Paperclip size={16} color="var(--color-terra-400)" />
+            : <ImagePlus size={16} color="var(--color-text-tertiary)" />
+          }
         </button>
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
+          onPaste={handleInputPaste}
           disabled={isPending}
-          placeholder={isPending ? 'ANA está respondiendo…' : 'Escribe aquí o pega los mensajes…'}
+          placeholder={isPending ? 'ANA está respondiendo…' : 'Escribe o pega captura (Ctrl+V)…'}
           style={{ flex: 1, padding: '10px 16px', borderRadius: 999, border: '1.5px solid var(--color-border)', background: isPending ? 'var(--color-gray-100)' : 'var(--color-gray-50)', fontFamily: 'var(--font-body)', fontSize: '0.9rem', outline: 'none', color: 'var(--color-text-primary)', transition: 'background 200ms' }}
         />
         <button
           onClick={handleSend}
-          disabled={!input.trim() || isPending}
-          style={{ width: 38, height: 38, borderRadius: '50%', background: input.trim() && !isPending ? 'var(--color-terra-500)' : 'var(--color-gray-200)', border: 'none', cursor: input.trim() && !isPending ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'background 200ms' }}
+          disabled={(!input.trim() && !pendingImage) || isPending}
+          style={{ width: 38, height: 38, borderRadius: '50%', background: (input.trim() || pendingImage) && !isPending ? 'var(--color-terra-500)' : 'var(--color-gray-200)', border: 'none', cursor: (input.trim() || pendingImage) && !isPending ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'background 200ms' }}
         >
-          <Send size={16} color={input.trim() && !isPending ? 'white' : 'var(--color-text-tertiary)'} />
+          <Send size={16} color={(input.trim() || pendingImage) && !isPending ? 'white' : 'var(--color-text-tertiary)'} />
         </button>
       </div>
     </div>
