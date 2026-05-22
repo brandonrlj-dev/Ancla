@@ -9,6 +9,7 @@ export interface ChatMessage {
   role: 'user' | 'ana';
   content: string;
   timestamp: Date;
+  imageDataUrl?: string; // base64 data URL, lives only in RAM, destroyed with session
 }
 
 export interface AnalysisResult {

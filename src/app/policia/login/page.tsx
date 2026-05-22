@@ -3,23 +3,42 @@
 import { motion } from 'framer-motion';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAnclaStore } from '@/lib/store';
-import { Shield, Eye, EyeOff, Lock } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
+import { Shield, Eye, EyeOff } from 'lucide-react';
 import AnclaLogo from '@/components/brand/AnclaLogo';
 import useMediaQuery from '@mui/material/useMediaQuery';
 
 export default function PCLoginPage() {
-  const router      = useRouter();
-  const isMobile    = useMediaQuery('(max-width: 768px)');
-  const { setPcAuthenticated } = useAnclaStore();
-  const [showPass, setShowPass]   = useState(false);
-  const [loading, setLoading]     = useState(false);
+  const router   = useRouter();
+  const isMobile = useMediaQuery('(max-width: 768px)');
+
+  const [email,    setEmail]    = useState('');
+  const [password, setPassword] = useState('');
+  const [showPass, setShowPass] = useState(false);
+  const [loading,  setLoading]  = useState(false);
+  const [error,    setError]    = useState('');
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 1200));
-    setPcAuthenticated(true);
+    setError('');
+
+    const supabase = createClient();
+    const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password });
+
+    if (authError) {
+      setError('Correo o contraseña incorrectos.');
+      setLoading(false);
+      return;
+    }
+
+    if (data.user?.user_metadata?.rol !== 'policia') {
+      await supabase.auth.signOut();
+      setError('Esta cuenta no tiene acceso al portal policial.');
+      setLoading(false);
+      return;
+    }
+
     router.push('/policia');
   }
 
@@ -103,12 +122,15 @@ export default function PCLoginPage() {
               </label>
               <input
                 type="email"
-                defaultValue="morales@policiacibernetica.gob.mx"
-                readOnly
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="agente@policiacibernetica.gob.mx"
+                required
+                autoComplete="email"
                 style={{
                   width: '100%', padding: '11px 14px', borderRadius: 10,
-                  border: '1.5px solid var(--color-border)', background: 'var(--color-gray-50)',
-                  fontFamily: 'var(--font-body)', fontSize: '0.9rem', color: 'var(--color-text-secondary)',
+                  border: '1.5px solid var(--color-border)', background: 'white',
+                  fontFamily: 'var(--font-body)', fontSize: '0.9rem', color: 'var(--color-text-primary)',
                   boxSizing: 'border-box', outline: 'none',
                 }}
               />
@@ -122,12 +144,15 @@ export default function PCLoginPage() {
               <div style={{ position: 'relative' }}>
                 <input
                   type={showPass ? 'text' : 'password'}
-                  defaultValue="Ancla2025#Segura"
-                  readOnly
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                  autoComplete="current-password"
                   style={{
                     width: '100%', padding: '11px 44px 11px 14px', borderRadius: 10,
-                    border: '1.5px solid var(--color-border)', background: 'var(--color-gray-50)',
-                    fontFamily: 'var(--font-body)', fontSize: '0.9rem', color: 'var(--color-text-secondary)',
+                    border: '1.5px solid var(--color-border)', background: 'white',
+                    fontFamily: 'var(--font-body)', fontSize: '0.9rem', color: 'var(--color-text-primary)',
                     boxSizing: 'border-box', outline: 'none',
                   }}
                 />
@@ -138,30 +163,12 @@ export default function PCLoginPage() {
               </div>
             </div>
 
-            {/* MFA Token */}
-            <div>
-              <label style={{ display: 'block', fontFamily: 'var(--font-body)', fontSize: '0.82rem', fontWeight: 500, color: 'var(--color-text-secondary)', marginBottom: 6 }}>
-                Token MFA
-              </label>
-              <div style={{ position: 'relative' }}>
-                <input
-                  type="text"
-                  defaultValue="847-291"
-                  readOnly
-                  style={{
-                    width: '100%', padding: '11px 14px 11px 44px', borderRadius: 10,
-                    border: '1.5px solid var(--color-calm-300)', background: 'var(--color-calm-50)',
-                    fontFamily: 'var(--font-mono)', fontSize: '1.1rem', fontWeight: 600,
-                    color: 'var(--color-calm-700)', letterSpacing: '0.1em',
-                    boxSizing: 'border-box', outline: 'none', textAlign: 'center',
-                  }}
-                />
-                <Lock size={15} color="var(--color-calm-400)" style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }} />
+            {/* Error */}
+            {error && (
+              <div style={{ padding: '10px 14px', borderRadius: 10, background: '#fef2f2', border: '1px solid #fecaca', fontFamily: 'var(--font-body)', fontSize: '0.82rem', color: '#dc2626' }}>
+                {error}
               </div>
-              <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.72rem', color: 'var(--color-text-tertiary)', marginTop: 4 }}>
-                Token pre-rellenado para demo. Válido por 28s.
-              </p>
-            </div>
+            )}
 
             {/* Submit */}
             <motion.button
@@ -171,7 +178,7 @@ export default function PCLoginPage() {
               whileTap={!loading ? { scale: 0.98 } : {}}
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                background: loading ? 'var(--color-night-500)' : '#2c3e50',
+                background: loading ? '#4a6070' : '#2c3e50',
                 color: 'white', border: 'none', borderRadius: 999,
                 padding: '13px 28px', fontSize: '0.95rem',
                 fontFamily: 'var(--font-body)', fontWeight: 600, cursor: loading ? 'default' : 'pointer',
@@ -181,10 +188,6 @@ export default function PCLoginPage() {
               <Shield size={17} />
               {loading ? 'Verificando...' : 'Iniciar sesión'}
             </motion.button>
-
-            <button type="button" style={{ background: 'none', border: 'none', color: 'var(--color-text-tertiary)', fontSize: '0.8rem', fontFamily: 'var(--font-body)', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3, padding: 0, textAlign: 'center' }}>
-              ¿Olvidaste tu contraseña?
-            </button>
           </form>
         </motion.div>
       </div>

@@ -2,11 +2,15 @@
 
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { AlertTriangle, Heart, Users, Search, TrendingUp, TrendingDown, ArrowRight } from 'lucide-react';
 import NayaritMap from '@/components/viz/NayaritMap';
-import { kpis, weeklyTrend, alertRows, directReports } from '@/lib/mock-data';
+import { kpis, weeklyTrend, alertRows } from '@/lib/mock-data';
+import { getDashboardData } from '@/actions/policia';
+import { type DashboardData, type ReporteRow } from '@/lib/policia-types';
+import { createClient } from '@/lib/supabase/client';
 
 const urgencyColors: Record<string, string> = {
   critica: '#ef4444',
@@ -15,25 +19,48 @@ const urgencyColors: Record<string, string> = {
   baja:    '#22c55e',
 };
 
-const kpiCards = [
-  { label: 'Alertas activas',       value: kpis.activeAlerts,       trend: kpis.weeklyChange.alerts,    up: true,  icon: AlertTriangle, color: '#bf6b4a' },
-  { label: 'Agresores identificados',value: kpis.aggressorsIdentified,trend: kpis.weeklyChange.aggressors,up: true, icon: Users,         color: '#9e4a28' },
-  { label: 'Reportes directos',      value: kpis.directReports,       trend: kpis.weeklyChange.reports,   up: true,  icon: Heart,         color: '#6b7f5e' },
-  { label: 'Casos en revisión',      value: kpis.casesUnderReview,    trend: kpis.weeklyChange.cases,     up: false, icon: Search,        color: '#5b81a8' },
-];
+function deriveUrgency(r: ReporteRow) {
+  if (r.patrones.includes('amenaza_difusion')) return 'critica';
+  if (r.patrones.length >= 2) return 'alta';
+  if (r.patrones.length === 1) return 'media';
+  return 'baja';
+}
 
-/* Mixed feed — alerts + direct reports sorted by time */
-const feedItems = [
-  { type: 'alert' as const,  id: alertRows[0].id,  folio: alertRows[0].folio,  urgency: alertRows[0].urgency, summary: alertRows[0].summary, zone: alertRows[0].zone,   time: '2h ago',  href: `/policia/alerta/${alertRows[0].id}` },
-  { type: 'report' as const, id: directReports[0].id, folio: directReports[0].folio, urgency: directReports[0].urgency, summary: directReports[0].summary, zone: 'Canal ANCLA', time: '3h ago', href: '/policia/reportes' },
-  { type: 'alert' as const,  id: alertRows[1].id,  folio: alertRows[1].folio,  urgency: alertRows[1].urgency, summary: alertRows[1].summary, zone: alertRows[1].zone,   time: '5h ago',  href: '/policia/alertas' },
-  { type: 'alert' as const,  id: alertRows[2].id,  folio: alertRows[2].folio,  urgency: alertRows[2].urgency, summary: alertRows[2].summary, zone: alertRows[2].zone,   time: '7h ago',  href: '/policia/alertas' },
-  { type: 'report' as const, id: directReports[1].id, folio: directReports[1].folio, urgency: directReports[1].urgency, summary: directReports[1].summary, zone: 'Canal ANCLA', time: '8h ago', href: '/policia/reportes' },
-];
+function deriveSummary(r: ReporteRow) {
+  const tipoMap: Record<string, string> = { sextorsion: 'Sextorsión', grooming: 'Grooming', acoso: 'Acoso digital' };
+  const tipo = tipoMap[r.tipo] ?? r.tipo;
+  return `${tipo} vía ${r.plataforma}`;
+}
+
+function timeAgo(iso: string) {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h`;
+  return `${Math.floor(hrs / 24)}d`;
+}
 
 export default function PCDashboard() {
   const router   = useRouter();
   const isMobile = useMediaQuery('(max-width: 768px)');
+  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+
+  useEffect(() => {
+    getDashboardData().then(setDashboard);
+  }, []);
+
+  // Realtime: refetch on new reports
+  useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase
+      .channel('dashboard-live')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'reportes_directos' }, () => {
+        getDashboardData().then(setDashboard);
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, []);
 
   return (
     <div style={{ padding: isMobile ? '24px 16px' : '32px 32px', maxWidth: 1200, margin: '0 auto' }}>
@@ -47,12 +74,17 @@ export default function PCDashboard() {
         </p>
       </motion.div>
 
-      {/* KPI cards — 4 cols desktop, 2 cols tablet, 1 col mobile <380px */}
+      {/* KPI cards */}
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 16, marginBottom: 28 }}>
-        {kpiCards.map((kpi, i) => (
+        {[
+          { label: 'Alertas activas',        value: kpis.activeAlerts,                      trend: kpis.weeklyChange.alerts,    up: true,  icon: AlertTriangle, color: '#bf6b4a', href: '/policia/alertas' },
+          { label: 'Agresores identificados', value: kpis.aggressorsIdentified,              trend: kpis.weeklyChange.aggressors,up: true,  icon: Users,         color: '#9e4a28', href: '#' },
+          { label: 'Reportes directos',       value: dashboard?.totalReportes    ?? '—',     trend: kpis.weeklyChange.reports,   up: true,  icon: Heart,         color: '#6b7f5e', href: '/policia/reportes' },
+          { label: 'En revisión',             value: dashboard?.reportesEnRevision ?? '—',   trend: kpis.weeklyChange.cases,     up: false, icon: Search,        color: '#5b81a8', href: '/policia/reportes' },
+        ].map((kpi, i) => (
           <motion.div key={kpi.label} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }}
             style={{ background: 'white', borderRadius: 16, padding: '20px', boxShadow: 'var(--shadow-sm)', border: '1px solid var(--color-border-subtle)', cursor: 'pointer' }}
-            onClick={() => router.push(kpi.label.includes('Alertas') ? '/policia/alertas' : kpi.label.includes('Reportes') ? '/policia/reportes' : kpi.label.includes('Estadísticas') ? '/policia/estadisticas' : '#')}
+            onClick={() => kpi.href !== '#' && router.push(kpi.href)}
           >
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
               <div style={{ width: 38, height: 38, borderRadius: 10, background: `${kpi.color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -61,7 +93,7 @@ export default function PCDashboard() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 999, background: kpi.up ? '#dcfce7' : '#fef9c3', border: `1px solid ${kpi.up ? '#bbf7d0' : '#fef08a'}` }}>
                 {kpi.up ? <TrendingUp size={12} color="#16a34a" /> : <TrendingDown size={12} color="#ca8a04" />}
                 <span style={{ fontSize: '0.7rem', fontFamily: 'var(--font-mono)', fontWeight: 600, color: kpi.up ? '#16a34a' : '#ca8a04' }}>
-                  {kpi.trend > 0 ? '+' : ''}{kpi.trend}
+                  {typeof kpi.trend === 'number' && kpi.trend > 0 ? '+' : ''}{kpi.trend}
                 </span>
               </div>
             </div>
@@ -106,31 +138,57 @@ export default function PCDashboard() {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {feedItems.map((item, i) => (
-              <motion.div key={item.id} initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.4 + i * 0.07 }}
-                onClick={() => router.push(item.href)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 10, cursor: 'pointer',
-                  borderLeft: `3px solid ${item.type === 'alert' ? urgencyColors[item.urgency] ?? '#999' : 'var(--color-sage-500)'}`,
-                  background: item.type === 'alert' ? `${urgencyColors[item.urgency] ?? '#999'}08` : 'var(--color-sage-50)',
-                  transition: 'filter 150ms',
-                }}
+            {/* Real direct reports feed */}
+            {dashboard?.recentReportes.map((rep, i) => {
+              const urg = deriveUrgency(rep);
+              const color = urgencyColors[urg];
+              return (
+                <motion.div key={rep.id} initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.4 + i * 0.07 }}
+                  onClick={() => router.push('/policia/reportes')}
+                  style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 10, cursor: 'pointer', borderLeft: `3px solid var(--color-sage-500)`, background: 'var(--color-sage-50)', transition: 'filter 150ms' }}
+                  onMouseEnter={(e) => { (e.currentTarget.style.filter = 'brightness(0.97)'); }}
+                  onMouseLeave={(e) => { (e.currentTarget.style.filter = 'none'); }}
+                >
+                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: color, flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--color-text-tertiary)' }}>{rep.folio}</span>
+                      <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.78rem', color: 'var(--color-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {deriveSummary(rep)}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-body)' }}>
+                      Canal ANCLA · {timeAgo(rep.createdAt)}
+                    </div>
+                  </div>
+                  <ArrowRight size={14} color="var(--color-text-tertiary)" />
+                </motion.div>
+              );
+            })}
+            {/* Mock alerts below real reports */}
+            {alertRows.slice(0, 2).map((item, i) => (
+              <motion.div key={item.id} initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.4 + ((dashboard?.recentReportes.length ?? 0) + i) * 0.07 }}
+                onClick={() => router.push(`/policia/alerta/${item.id}`)}
+                style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 10, cursor: 'pointer', borderLeft: `3px solid ${urgencyColors[item.urgency] ?? '#999'}`, background: `${urgencyColors[item.urgency] ?? '#999'}08`, transition: 'filter 150ms' }}
                 onMouseEnter={(e) => { (e.currentTarget.style.filter = 'brightness(0.97)'); }}
                 onMouseLeave={(e) => { (e.currentTarget.style.filter = 'none'); }}
               >
-                <div style={{ width: 10, height: 10, borderRadius: '50%', background: item.type === 'alert' ? urgencyColors[item.urgency] ?? '#999' : 'var(--color-sage-500)', flexShrink: 0 }} />
+                <div style={{ width: 10, height: 10, borderRadius: '50%', background: urgencyColors[item.urgency] ?? '#999', flexShrink: 0 }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--color-text-tertiary)' }}>{item.folio}</span>
-                    <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.78rem', color: 'var(--color-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {item.summary}
-                    </span>
+                    <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.78rem', color: 'var(--color-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.summary}</span>
                   </div>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-body)' }}>{item.zone} · {item.time}</div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-body)' }}>{item.zone} · dato de muestra</div>
                 </div>
                 <ArrowRight size={14} color="var(--color-text-tertiary)" />
               </motion.div>
             ))}
+            {!dashboard && (
+              <div style={{ fontFamily: 'var(--font-body)', fontSize: '0.82rem', color: 'var(--color-text-tertiary)', padding: '8px 12px', fontStyle: 'italic' }}>
+                Cargando actividad reciente…
+              </div>
+            )}
           </div>
         </motion.div>
       </div>

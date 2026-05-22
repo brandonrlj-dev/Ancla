@@ -1,13 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LayoutDashboard, AlertTriangle, Heart, BarChart3, Menu, X, Bell } from 'lucide-react';
+import { LayoutDashboard, AlertTriangle, Heart, BarChart3, Menu, X, Bell, LogOut } from 'lucide-react';
 import AnclaLogo from '@/components/brand/AnclaLogo';
 import Jumper from '@/components/nav/Jumper';
-import { kpis, mockAgent } from '@/lib/mock-data';
+import { kpis } from '@/lib/mock-data';
+import { logoutPolicia } from '@/actions/auth';
 
 const SIDEBAR_BG = '#2c3e50';
 const SIDEBAR_W  = 280;
@@ -62,7 +63,15 @@ function NavItem({ item, pathname, router, onNav }: {
   );
 }
 
-function SidebarContent({ pathname, router, onNav }: { pathname: string; router: ReturnType<typeof useRouter>; onNav?: () => void }) {
+function SidebarContent({ pathname, router, agentName, onNav }: {
+  pathname: string;
+  router: ReturnType<typeof useRouter>;
+  agentName: string;
+  onNav?: () => void;
+}) {
+  const [isPending, startTransition] = useTransition();
+  const initials = agentName.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: SIDEBAR_BG }}>
       <div style={{ padding: '24px 20px 20px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
@@ -81,19 +90,31 @@ function SidebarContent({ pathname, router, onNav }: { pathname: string; router:
       <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#3d5e81', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ab7d5', fontFamily: 'var(--font-body)', fontWeight: 700, fontSize: '0.8rem', flexShrink: 0 }}>
-            AM
+            {initials}
           </div>
-          <div>
-            <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#dce8f0', fontFamily: 'var(--font-body)' }}>{mockAgent}</div>
-            <div style={{ fontSize: '0.68rem', color: '#8aaac4', fontFamily: 'var(--font-mono)' }}>Folio {kpis.directReports} activos hoy</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#dce8f0', fontFamily: 'var(--font-body)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {agentName}
+            </div>
+            <div style={{ fontSize: '0.68rem', color: '#8aaac4', fontFamily: 'var(--font-mono)' }}>
+              {kpis.directReports} activos hoy
+            </div>
           </div>
+          <button
+            onClick={() => startTransition(() => logoutPolicia())}
+            disabled={isPending}
+            title="Cerrar sesión"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6889a8', padding: 4, flexShrink: 0, opacity: isPending ? 0.5 : 1 }}
+          >
+            <LogOut size={16} />
+          </button>
         </div>
       </div>
     </div>
   );
 }
 
-export default function PCLayoutClient({ children }: { children: React.ReactNode }) {
+export default function PCLayoutClient({ children, agentName }: { children: React.ReactNode; agentName: string }) {
   const pathname = usePathname();
   const router   = useRouter();
   const isMobile = useMediaQuery('(max-width: 768px)');
@@ -106,7 +127,7 @@ export default function PCLayoutClient({ children }: { children: React.ReactNode
       {/* Desktop sidebar */}
       {!isMobile && (
         <div style={{ width: SIDEBAR_W, flexShrink: 0 }}>
-          <SidebarContent pathname={pathname} router={router} />
+          <SidebarContent pathname={pathname} router={router} agentName={agentName} />
         </div>
       )}
 
@@ -132,7 +153,7 @@ export default function PCLayoutClient({ children }: { children: React.ReactNode
               style={{ position: 'fixed', inset: 0, zIndex: 250, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }} />
             <motion.div key="dr" initial={{ x: -SIDEBAR_W }} animate={{ x: 0 }} exit={{ x: -SIDEBAR_W }} transition={{ type: 'spring', damping: 28, stiffness: 280 }}
               style={{ position: 'fixed', top: 0, left: 0, bottom: 0, width: SIDEBAR_W, zIndex: 260 }}>
-              <SidebarContent pathname={pathname} router={router} onNav={() => setOpen(false)} />
+              <SidebarContent pathname={pathname} router={router} agentName={agentName} onNav={() => setOpen(false)} />
               <button onClick={() => setOpen(false)} aria-label="Cerrar menú"
                 style={{ position: 'absolute', top: 16, right: -44, background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%', width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                 <X size={18} color="white" />

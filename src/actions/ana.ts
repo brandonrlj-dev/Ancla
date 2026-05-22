@@ -46,7 +46,7 @@ function parseAnalysis(raw: string): AnaAnalysis {
   // Try direct parse
   try {
     const parsed = JSON.parse(cleaned) as AnaAnalysis
-    if (typeof parsed.respuesta === 'string') return parsed
+    if (typeof parsed.respuesta === 'string' && parsed.respuesta.trim()) return parsed
   } catch { /* fall through */ }
 
   // Extract first JSON object from the text
@@ -54,7 +54,7 @@ function parseAnalysis(raw: string): AnaAnalysis {
   if (match) {
     try {
       const parsed = JSON.parse(match[0]) as AnaAnalysis
-      if (typeof parsed.respuesta === 'string') return parsed
+      if (typeof parsed.respuesta === 'string' && parsed.respuesta.trim()) return parsed
     } catch { /* fall through */ }
   }
 
@@ -182,9 +182,12 @@ export async function sendMessageToAna(params: {
   }
 
   // ── Step 2: Claude empathetic response ───────────────────────────────────
-  // Convert store messages (role: 'ana') to Claude format (role: 'assistant')
-  // Send only the last 20 messages to keep payload small
-  const recentMessages = params.messages.slice(-20)
+  // Filter out messages with empty content — Claude API rejects them with 400.
+  // Then take the last 20 to keep payload small.
+  const filteredHistory = params.messages.filter(
+    (m) => m.content && m.content.trim() !== '',
+  )
+  const recentMessages = filteredHistory.slice(-20)
   const claudeMessages: Anthropic.MessageParam[] = recentMessages.map((m) => ({
     role: m.role === 'ana' ? 'assistant' : 'user',
     content: m.content,
@@ -192,7 +195,7 @@ export async function sendMessageToAna(params: {
 
   // Build the final user turn — include screenshot text as context if present
   const userTurn = params.captureText
-    ? `${params.userInput}\n\n[El joven compartió una captura de pantalla. Texto extraído por OCR — considéralo para la evaluación del incidente, pero sigue el protocolo de 4 pasos: pregunta contexto antes de concluir nada sobre el contenido]:\n${params.captureText}`
+    ? `${params.userInput}\n\n[El joven compartió una captura de pantalla. Texto extraído por OCR — úsalo como contexto para el paso actual del flujo]:\n${params.captureText}`
     : params.userInput
 
   claudeMessages.push({ role: 'user', content: userTurn })
@@ -210,7 +213,7 @@ export async function sendMessageToAna(params: {
   const analysis = parseAnalysis(rawText)
 
   return {
-    response: analysis.respuesta,
+    response: analysis.respuesta || 'Estoy procesando lo que me dijiste, dame un momento.',
     isEmergency: false,
     riskDelta: Math.min(30, Math.max(-5, analysis.riskDelta ?? 0)),
     newPatterns: analysis.patronesDetectados ?? [],

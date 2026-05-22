@@ -76,10 +76,18 @@ export default function ChatSalvavidasPage() {
     const imageFile = pendingImage ?? null;
     if (imageFile) clearPendingImage();
 
-    const displayContent = text
-      ? text + (imageFile ? ' 📎' : '')
-      : '📎 Adjunté una captura de pantalla';
-    addChatMessage({ id: crypto.randomUUID(), role: 'user', content: displayContent, timestamp: new Date() });
+    let imageDataUrl: string | undefined;
+    if (imageFile) {
+      imageDataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(new Error('FileReader failed'));
+        reader.readAsDataURL(imageFile);
+      });
+    }
+
+    const displayContent = text || '';
+    addChatMessage({ id: crypto.randomUUID(), role: 'user', content: displayContent, timestamp: new Date(), imageDataUrl });
     touchActivity();
     setAnaState('talking');
 
@@ -102,15 +110,21 @@ export default function ChatSalvavidasPage() {
 
     startTransition(async () => {
       try {
+        const messagesForServer = useAnclaStore.getState().chatMessages.map(
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          ({ imageDataUrl: _, ...msg }) => msg,
+        )
         const result = await sendMessageToAna({
-          messages: useAnclaStore.getState().chatMessages,
+          messages: messagesForServer,
           userInput: text || '(El joven compartió una captura de pantalla)',
           sessionToken,
           mode: 'salvavidas',
           captureText: captureText || undefined,
         });
 
-        addChatMessage({ id: crypto.randomUUID(), role: 'ana', content: result.response, timestamp: new Date() });
+        if (result.response) {
+          addChatMessage({ id: crypto.randomUUID(), role: 'ana', content: result.response, timestamp: new Date() });
+        }
         setOcrLabel(null);
         setRiskLevel(Math.min(100, Math.max(0, riskLevel + result.riskDelta)));
 
@@ -299,14 +313,23 @@ export default function ChatSalvavidasPage() {
             <motion.div key={m.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
               style={{ alignSelf: isAna ? 'flex-start' : 'flex-end', maxWidth: '80%' }}>
               <div style={{
-                padding: '12px 16px',
+                padding: !isAna && m.imageDataUrl && !m.content ? '6px' : '12px 16px',
                 borderRadius: isAna ? '18px 18px 18px 4px' : '18px 18px 4px 18px',
                 background: isAna ? 'white' : 'var(--color-terra-500)',
                 color: isAna ? 'var(--color-text-primary)' : 'white',
                 fontFamily: 'var(--font-body)', fontSize: '0.9rem', lineHeight: 1.6,
                 boxShadow: isAna ? 'var(--shadow-sm)' : 'none',
                 border: isAna ? '1px solid var(--color-border-subtle)' : 'none',
+                overflow: 'hidden',
               }}>
+                {!isAna && m.imageDataUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={m.imageDataUrl}
+                    alt="Captura adjunta"
+                    style={{ width: '100%', maxHeight: 220, objectFit: 'contain', borderRadius: 10, display: 'block', marginBottom: m.content ? 8 : 0 }}
+                  />
+                )}
                 {m.content}
                 {isAna && (
                   <div style={{ marginTop: 6, paddingTop: 4, borderTop: '1px solid var(--color-border-subtle)', fontSize: '0.68rem', color: 'var(--color-text-tertiary)', fontStyle: 'italic' }}>

@@ -77,11 +77,20 @@ export default function ChatEscudoPage() {
     const imageFile = pendingImage ?? null;
     if (imageFile) clearPendingImage();
 
-    // Add user message immediately so the chat feels responsive
-    const displayContent = text
-      ? text + (imageFile ? ' 📎' : '')
-      : '📎 Adjunté una captura de pantalla';
-    addChatMessage({ id: crypto.randomUUID(), role: 'user', content: displayContent, timestamp: new Date() });
+    // Convert image to base64 data URL — stays in RAM, never leaves device
+    let imageDataUrl: string | undefined;
+    if (imageFile) {
+      imageDataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(new Error('FileReader failed'));
+        reader.readAsDataURL(imageFile);
+      });
+    }
+
+    // Add user message — thumbnail replaces the emoji placeholder
+    const displayContent = text || '';
+    addChatMessage({ id: crypto.randomUUID(), role: 'user', content: displayContent, timestamp: new Date(), imageDataUrl });
     touchActivity();
     setAnaState('talking');
 
@@ -106,15 +115,23 @@ export default function ChatEscudoPage() {
 
     startTransition(async () => {
       try {
+        // Strip imageDataUrl — base64 can be several MB and would exceed the 1 MB Server Action limit
+        const messagesForServer = useAnclaStore.getState().chatMessages.map(
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          ({ imageDataUrl: _, ...msg }) => msg,
+        )
         const result = await sendMessageToAna({
-          messages: useAnclaStore.getState().chatMessages,
+          messages: messagesForServer,
           userInput: text || '(El joven compartió una captura de pantalla)',
           sessionToken,
           mode: 'escudo',
           captureText: captureText || undefined,
         });
 
-        addChatMessage({ id: crypto.randomUUID(), role: 'ana', content: result.response, timestamp: new Date() });
+        // Guard: never add an empty ANA message — it would poison all future history sent to Claude
+        if (result.response) {
+          addChatMessage({ id: crypto.randomUUID(), role: 'ana', content: result.response, timestamp: new Date() });
+        }
         setOcrLabel(null); // ANA already processed the screenshot — clear the chip
         setRiskLevel(Math.min(100, Math.max(0, riskLevel + result.riskDelta)));
 
@@ -273,7 +290,7 @@ export default function ChatEscudoPage() {
                   <motion.div key={m.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
                     style={{ alignSelf: isAna ? 'flex-start' : 'flex-end', maxWidth: '80%' }}>
                     <div style={{
-                      padding: '12px 16px',
+                      padding: !isAna && m.imageDataUrl && !m.content ? '6px' : '12px 16px',
                       borderRadius: isAna ? '18px 18px 18px 4px' : '18px 18px 4px 18px',
                       background: isAna
                         ? (isEmergency && anaState === 'critical' ? '#fef2f2' : 'white')
@@ -284,7 +301,17 @@ export default function ChatEscudoPage() {
                       border: isAna
                         ? `1px solid ${isEmergency && anaState === 'critical' ? '#fca5a5' : 'var(--color-border-subtle)'}`
                         : 'none',
+                      overflow: 'hidden',
                     }}>
+                      {/* Thumbnail — only on user messages with an attached image */}
+                      {!isAna && m.imageDataUrl && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={m.imageDataUrl}
+                          alt="Captura adjunta"
+                          style={{ width: '100%', maxHeight: 220, objectFit: 'contain', borderRadius: 10, display: 'block', marginBottom: m.content ? 8 : 0 }}
+                        />
+                      )}
                       {m.content}
                       {isAna && (
                         <div style={{ marginTop: 6, paddingTop: 4, borderTop: '1px solid var(--color-border-subtle)', fontSize: '0.68rem', color: 'var(--color-text-tertiary)', fontStyle: 'italic' }}>
