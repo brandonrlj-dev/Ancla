@@ -23,7 +23,7 @@ export default function RespiracionPage() {
   const [valid,  setValid]  = useState(0);
   const [cycles, setCycles] = useState(0);
 
-  /* Phase ticker — 3 s per phase, 12 s full cycle */
+  /* Phase ticker — 6 s per phase, 24 s full cycle */
   useEffect(() => {
     const t = setInterval(() => {
       setPhase((p) => {
@@ -31,13 +31,13 @@ export default function RespiracionPage() {
         if (next === 0) setCycles((c) => c + 1);
         return next;
       });
-    }, 3000);
+    }, 6000);
     return () => clearInterval(t);
   }, []);
 
-  /* Validation ticker — 4 s */
+  /* Validation ticker — 14 s */
   useEffect(() => {
-    const t = setInterval(() => setValid((v) => (v + 1) % VALIDATIONS.length), 4000);
+    const t = setInterval(() => setValid((v) => (v + 1) % VALIDATIONS.length), 14000);
     return () => clearInterval(t);
   }, []);
 
@@ -150,8 +150,8 @@ export default function RespiracionPage() {
           <motion.div
             animate={{ scale: [1, 1.5, 1.5, 1] }}
             transition={{
-              duration: 12,
-              times: [0, 0.33, 0.66, 1],
+              duration: 24,
+              times: [0, 0.25, 0.5, 1],
               ease: 'easeInOut',
               repeat: Infinity,
             }}
@@ -165,47 +165,49 @@ export default function RespiracionPage() {
           />
         </div>
 
-        {/* Instruction — fades between phases */}
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={phase}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.4 }}
-            style={{
-              fontFamily: 'var(--font-display)',
-              fontSize: isMobile ? 22 : 28,
-              fontStyle: 'italic',
-              color: '#2C2C2A',
-              marginBottom: 18,
-              minHeight: isMobile ? 32 : 40,
-            }}
-          >
-            {PHASES[phase]}
-          </motion.div>
-        </AnimatePresence>
+        {/* Instruction — vapor crossfade */}
+        <div style={{ position: 'relative', minHeight: isMobile ? 36 : 48, marginBottom: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <AnimatePresence>
+            <motion.div
+              key={phase}
+              initial={{ opacity: 0, filter: 'blur(8px)' }}
+              animate={{ opacity: 1, filter: 'blur(0px)', transition: { duration: 2.0, ease: 'easeOut' } }}
+              exit={{ opacity: 0, filter: 'blur(6px)', transition: { duration: 1.6, ease: 'easeIn' } }}
+              style={{
+                position: 'absolute',
+                fontFamily: 'var(--font-display)',
+                fontSize: isMobile ? 22 : 28,
+                fontStyle: 'italic',
+                color: '#2C2C2A',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {PHASES[phase]}
+            </motion.div>
+          </AnimatePresence>
+        </div>
 
-        {/* Validation — fades independently */}
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={valid}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.6 }}
-            style={{
-              fontFamily: 'var(--font-display)',
-              fontSize: isMobile ? 15 : 17,
-              fontStyle: 'italic',
-              color: '#57544E',
-              marginBottom: 48,
-              minHeight: isMobile ? 24 : 30,
-            }}
-          >
-            {VALIDATIONS[valid]}
-          </motion.div>
-        </AnimatePresence>
+        {/* Validation — slower vapor, more ethereal */}
+        <div style={{ position: 'relative', minHeight: isMobile ? 28 : 34, marginBottom: 48, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <AnimatePresence>
+            <motion.div
+              key={valid}
+              initial={{ opacity: 0, filter: 'blur(10px)' }}
+              animate={{ opacity: 1, filter: 'blur(0px)', transition: { duration: 2.8, ease: 'easeOut' } }}
+              exit={{ opacity: 0, filter: 'blur(8px)', transition: { duration: 2.2, ease: 'easeIn' } }}
+              style={{
+                position: 'absolute',
+                fontFamily: 'var(--font-display)',
+                fontSize: isMobile ? 15 : 17,
+                fontStyle: 'italic',
+                color: '#57544E',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {VALIDATIONS[valid]}
+            </motion.div>
+          </AnimatePresence>
+        </div>
 
         {/* Buttons — appear fully after 1 cycle */}
         <motion.div
