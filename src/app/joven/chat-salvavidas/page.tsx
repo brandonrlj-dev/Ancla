@@ -10,7 +10,6 @@ import { Send, Paperclip, Phone, X, ArrowRight, ImagePlus } from 'lucide-react';
 import { useAnclaStore } from '@/lib/store';
 import { useInactivityTimer } from '@/hooks/useInactivityTimer';
 import { sendMessageToAna } from '@/actions/ana';
-import { startAnalysisJob } from '@/actions/analysis';
 
 const ANA_GREETING_SALVAVIDAS =
   'Estoy aquí. Antes de nada — ¿estás en un lugar físicamente seguro ahora mismo?';
@@ -24,13 +23,8 @@ export default function ChatSalvavidasPage() {
     setAnaState,
     chatMessages,
     addChatMessage,
-    riskLevel,
-    setRiskLevel,
     sessionToken,
     touchActivity,
-    addAnalysisPatterns,
-    analysisJobId,
-    setAnalysisJobId,
     setOcrText,
   } = useAnclaStore();
 
@@ -126,29 +120,16 @@ export default function ChatSalvavidasPage() {
           addChatMessage({ id: crypto.randomUUID(), role: 'ana', content: result.response, timestamp: new Date() });
         }
         setOcrLabel(null);
-        setRiskLevel(Math.min(100, Math.max(0, riskLevel + result.riskDelta)));
 
-        if (result.isEmergency) {
+        if (result.hayEmergencia) {
           setIsEmergency(true);
           setAnaState('critical');
         } else {
           setAnaState('validating');
         }
 
-        if (result.newPatterns.length > 0) addAnalysisPatterns(result.newPatterns);
-
-        if (result.sugerirAnalisis) {
+        if (result.sugerirAncla) {
           setShowCTA(true);
-          const textForJob = captureText || useAnclaStore.getState().ocrText || '';
-          if (textForJob) {
-            const context = `Nivel de riesgo: ${riskLevel}/100. Mensajes: ${chatMessages.length}. Modo: Salvavidas.`;
-            try {
-              const { jobId } = await startAnalysisJob({ ocrText: textForJob, conversationContext: context, sessionToken });
-              setAnalysisJobId(jobId);
-            } catch (err) {
-              console.error('[chat-sv] startAnalysisJob:', err);
-            }
-          }
         }
       } catch {
         addChatMessage({ id: crypto.randomUUID(), role: 'ana', content: 'Hubo un problema de conexión. Sigo aquí — intenta de nuevo.', timestamp: new Date() });

@@ -27,29 +27,28 @@ function isRateLimited(ip: string): boolean {
 
 interface AnaAnalysis {
   respuesta: string
-  riskDelta: number
-  patronesDetectados: string[]
-  sugerirAnalisis: boolean
+  hayEmergencia: boolean
+  sugerirEscudo: boolean
+  sugerirAncla: boolean
+  sugerirRegulacion: boolean
 }
 
 function parseAnalysis(raw: string): AnaAnalysis {
   const fallback: AnaAnalysis = {
     respuesta: 'Estoy aquí contigo. ¿Puedes contarme un poco más sobre lo que está pasando?',
-    riskDelta: 0,
-    patronesDetectados: [],
-    sugerirAnalisis: false,
+    hayEmergencia: false,
+    sugerirEscudo: false,
+    sugerirAncla: false,
+    sugerirRegulacion: false,
   }
 
-  // Strip markdown code fences if present
   const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
 
-  // Try direct parse
   try {
     const parsed = JSON.parse(cleaned) as AnaAnalysis
     if (typeof parsed.respuesta === 'string' && parsed.respuesta.trim()) return parsed
   } catch { /* fall through */ }
 
-  // Extract first JSON object from the text
   const match = cleaned.match(/\{[\s\S]*\}/)
   if (match) {
     try {
@@ -62,18 +61,16 @@ function parseAnalysis(raw: string): AnaAnalysis {
 }
 
 // ── Layer 1: Keyword detection ───────────────────────────────────────────────
-// Explicit self-harm intent in Spanish. Two-word minimums avoid false positives
-// ("me matan de risa", "voy a morir de vergüenza", etc.)
+// Explicit self-harm intent in Spanish. Two-word minimums avoid false positives.
 const EMERGENCY_PHRASES = [
-  'quiero matar',    // "me quiero matar", "quiero matarme"
-  'voy a matar',     // "voy a matarme", "me voy a matar"
-  'quiero morir',    // "me quiero morir", "quiero morirme"
-  'voy a morir',     // intención explícita, not "voy a morir de frío"
-  'quiero suicidar', // "quiero suicidarme", "me quiero suicidar"
+  'quiero matar',
+  'voy a matar',
+  'quiero morir',
+  'voy a morir',
+  'quiero suicidar',
   'voy a suicidar',
-  'hacerme daño',    // "quiero hacerme daño", "voy a hacerme daño"
   'hacerme daño',
-  'voy a hacer daño', // "me voy a hacer daño"
+  'voy a hacer daño',
   'quitarme la vida',
   'no quiero vivir',
   'quiero cortarme',
@@ -92,22 +89,17 @@ function hasEmergencyKeyword(text: string): boolean {
 }
 
 // ── Layer 2: Gemini contextual gate ──────────────────────────────────────────
-// Catches ambiguous signals that keywords miss (e.g., veiled intent).
-// Logs errors visibly — a silent fail here is a safety risk.
+// Catches ambiguous signals that keywords miss. Logs errors visibly — a silent
+// fail here is a safety risk.
 async function geminiEmergencyGate(userInput: string): Promise<boolean> {
   try {
     const generationConfig = {
       responseMimeType: 'application/json',
       maxOutputTokens: 100,
       temperature: 0,
-      thinkingConfig: {
-        thinkingBudget: 0,
-      },
+      thinkingConfig: { thinkingBudget: 0 },
     } as any
-    const geminiModel = genai.getGenerativeModel({
-      model: 'gemini-2.5-flash',
-      generationConfig,
-    })
+    const geminiModel = genai.getGenerativeModel({ model: 'gemini-2.5-flash', generationConfig })
 
     const prompt = `Eres un sistema de seguridad para menores en crisis. Evalúa si el mensaje indica INTENCIÓN EXPLÍCITA de hacerse daño físico o suicidio.
 
@@ -124,13 +116,11 @@ Mensaje: "${userInput.slice(0, 400)}"
 No uses markdown. Responde ÚNICAMENTE con el JSON crudo: {"emergency":true} o {"emergency":false}`
 
     const result = await geminiModel.generateContent(prompt)
-
     const text = result.response.text().trim()
     const jsonMatch = text.match(/\{[\s\S]*\}/)
     const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : text) as { emergency: boolean }
     return parsed.emergency === true
   } catch (err) {
-    // Log explicitly — a silent fail here means we could miss a real emergency
     console.error('[ANA emergency gate] Gemini failed, relying on keyword layer:', err)
     return false
   }
@@ -138,18 +128,18 @@ No uses markdown. Responde ÚNICAMENTE con el JSON crudo: {"emergency":true} o {
 
 export interface SendMessageResult {
   response: string
-  isEmergency: boolean
-  riskDelta: number
-  newPatterns: string[]
-  sugerirAnalisis: boolean
+  hayEmergencia: boolean
+  sugerirEscudo: boolean
+  sugerirAncla: boolean
+  sugerirRegulacion: boolean
 }
 
 export async function sendMessageToAna(params: {
   messages: ChatMessage[]
   userInput: string
   sessionToken: string
-  mode: 'escudo' | 'salvavidas'
-  captureText?: string  // OCR text from screenshot — never the image itself
+  mode?: 'escudo' | 'salvavidas'  // kept for call-site compatibility, now ignored
+  captureText?: string
 }): Promise<SendMessageResult> {
   const headersList = await headers()
   const ip = headersList.get('x-forwarded-for')?.split(',')[0].trim() ?? '127.0.0.1'
@@ -157,33 +147,28 @@ export async function sendMessageToAna(params: {
   if (isRateLimited(ip)) {
     return {
       response: 'Estoy recibiendo muchos mensajes. Espera un momento antes de continuar.',
-      isEmergency: false,
-      riskDelta: 0,
-      newPatterns: [],
-      sugerirAnalisis: false,
+      hayEmergencia: false,
+      sugerirEscudo: false,
+      sugerirAncla: false,
+      sugerirRegulacion: false,
     }
   }
 
-  // ── Step 1: Keyword gate (synchronous, no API call) ─────────────────────
-  // Catches explicit self-harm intent before any network call.
-  // Must run regardless of Gemini availability.
+  // ── Step 1: Two-layer emergency gate (synchronous keyword first, then Gemini) ─
   const isEmergency = hasEmergencyKeyword(params.userInput) || await geminiEmergencyGate(params.userInput)
 
-  // ── Emergency protocol: return immediately, skip Claude ──────────────────
   if (isEmergency) {
     return {
       response:
-        'Escucho que estás en peligro ahora mismo. Esto es una emergencia y quiero que sepas que hay personas capacitadas para ayudarte en este momento.\n\nLlama ahora al 800 911 2000 (Línea de la Vida, gratuita, disponible las 24 horas) o al 911.\n\nNo estás solo/a. Estas personas están entrenadas para exactamente esto.',
-      isEmergency: true,
-      riskDelta: 40,
-      newPatterns: [],
-      sugerirAnalisis: false,
+        'Lo que sientes importa mucho. Hay personas capacitadas para acompañarte ahora mismo. Llama al 800 911 2000 (Línea de la Vida, gratuita, 24 horas) o al 911. No estás solo/a.',
+      hayEmergencia: true,
+      sugerirEscudo: false,
+      sugerirAncla: false,
+      sugerirRegulacion: false,
     }
   }
 
   // ── Step 2: Claude empathetic response ───────────────────────────────────
-  // Filter out messages with empty content — Claude API rejects them with 400.
-  // Then take the last 20 to keep payload small.
   const filteredHistory = params.messages.filter(
     (m) => m.content && m.content.trim() !== '',
   )
@@ -193,30 +178,27 @@ export async function sendMessageToAna(params: {
     content: m.content,
   }))
 
-  // Build the final user turn — include screenshot text as context if present
   const userTurn = params.captureText
-    ? `${params.userInput}\n\n[El joven compartió una captura de pantalla. Texto extraído por OCR — úsalo como contexto para el paso actual del flujo]:\n${params.captureText}`
+    ? `${params.userInput}\n\n[El joven compartió una captura de pantalla. Texto extraído por OCR]:\n${params.captureText}`
     : params.userInput
 
   claudeMessages.push({ role: 'user', content: userTurn })
 
   const claudeResponse = await anthropic.messages.create({
     model: 'claude-sonnet-4-5',
-    max_tokens: 1024,
-    system: buildSystemPrompt(params.mode),
+    max_tokens: 512,
+    system: buildSystemPrompt('escudo'),
     messages: claudeMessages,
   })
 
-  const rawText =
-    claudeResponse.content.find((b) => b.type === 'text')?.text ?? ''
-
+  const rawText = claudeResponse.content.find((b) => b.type === 'text')?.text ?? ''
   const analysis = parseAnalysis(rawText)
 
   return {
-    response: analysis.respuesta || 'Estoy procesando lo que me dijiste, dame un momento.',
-    isEmergency: false,
-    riskDelta: Math.min(30, Math.max(-5, analysis.riskDelta ?? 0)),
-    newPatterns: analysis.patronesDetectados ?? [],
-    sugerirAnalisis: analysis.sugerirAnalisis ?? false,
+    response: analysis.respuesta || 'Estoy aquí contigo. ¿Puedes contarme un poco más?',
+    hayEmergencia: analysis.hayEmergencia ?? false,
+    sugerirEscudo: analysis.sugerirEscudo ?? false,
+    sugerirAncla: analysis.sugerirAncla ?? false,
+    sugerirRegulacion: analysis.sugerirRegulacion ?? false,
   }
 }
