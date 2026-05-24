@@ -134,7 +134,7 @@ export default function AccionesPage() {
             </button>
           ) : (
             <button
-              onClick={() => router.push('/joven/reporte')}
+              onClick={() => router.push('/joven/ancla')}
               style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '10px 20px', borderRadius: 999, background: 'var(--color-calm-500)', color: 'white', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '0.85rem', fontWeight: 500 }}
             >
               Ver mi reporte <ArrowRight size={16} />

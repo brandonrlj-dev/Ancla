@@ -76,7 +76,7 @@ const slideVariants = {
 export default function EscudoPage() {
   const router = useRouter()
   const isMobile = useMediaQuery('(max-width: 768px)')
-  const { setOcrText, setEscudoResult } = useAnclaStore()
+  const { setEscudoResult } = useAnclaStore()
 
   const [step, setStep] = useState(0)   // 0–6
 
@@ -117,7 +117,6 @@ export default function EscudoPage() {
       const { extractTextFromImage } = await import('@/lib/ocr')
       const text = await extractTextFromImage(file)
       setLocalOcrText(text)
-      setOcrText(text)
       setOcrWordCount(text.split(/\s+/).filter(Boolean).length)
     } catch {
       setLocalOcrText('')
@@ -132,7 +131,6 @@ export default function EscudoPage() {
     setImagePreviewUrl(null)
     setLocalOcrText('')
     setOcrWordCount(0)
-    setOcrText(null)
   }
 
   function handleFileInput(e: React.ChangeEvent<HTMLInputElement>) {

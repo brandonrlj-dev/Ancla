@@ -2,7 +2,6 @@ import { create } from 'zustand';
 
 export type AnaState = 'listening' | 'talking' | 'validating' | 'critical';
 export type EmotionalState = 'calma' | 'bien' | 'mas-o-menos' | 'mal' | 'crisis';
-export type RiskLevel = number; // 0–100
 
 export interface ChatMessage {
   id: string;
@@ -10,13 +9,6 @@ export interface ChatMessage {
   content: string;
   timestamp: Date;
   imageDataUrl?: string; // base64 data URL, lives only in RAM, destroyed with session
-}
-
-export interface AnalysisResult {
-  patrones_detectados: string[];
-  nivel_riesgo: number;
-  fase_grooming: number;
-  resumen_comportamiento: string;
 }
 
 export interface EscudoSessionResult {
@@ -36,10 +28,6 @@ interface AnclaStore {
   /* Emotional state (termómetro) */
   emotionalState: EmotionalState | null;
   setEmotionalState: (s: EmotionalState) => void;
-
-  /* Risk score */
-  riskLevel: RiskLevel;
-  setRiskLevel: (r: RiskLevel) => void;
 
   /* Chat messages — never persisted to server, lives in RAM only */
   chatMessages: ChatMessage[];
@@ -63,26 +51,11 @@ interface AnclaStore {
   touchActivity: () => void;
   clearSession: () => void;
 
-  /* Analysis patterns — accumulated across conversation, never sent to server */
-  analysisPatterns: string[];
-  setAnalysisPatterns: (p: string[]) => void;
-  addAnalysisPatterns: (p: string[]) => void; // merges without duplicates
-
-  /* Deep analysis job (Phase 2) */
-  analysisJobId: string | null;
-  setAnalysisJobId: (id: string | null) => void;
-  analysisResult: AnalysisResult | null;
-  setAnalysisResult: (r: AnalysisResult | null) => void;
-
-  /* OCR text extracted from screenshots — images never leave device */
-  ocrText: string | null;
-  setOcrText: (t: string | null) => void;
-
   /* Escudo questionnaire result — passed to Ancla for pre-filling */
   escudoResult: EscudoSessionResult | null;
   setEscudoResult: (r: EscudoSessionResult | null) => void;
 
-  /* Report identity — computed once on analisis page, read on reporte page */
+  /* Report identity — computed in ancla flow, synced here for cross-page access */
   folio: string;
   setFolio: (f: string) => void;
   hashHex: string;
@@ -97,9 +70,6 @@ export const useAnclaStore = create<AnclaStore>((set) => ({
 
   emotionalState: null,
   setEmotionalState: (s) => set({ emotionalState: s }),
-
-  riskLevel: 0,
-  setRiskLevel: (r) => set({ riskLevel: r }),
 
   chatMessages: [],
   addChatMessage: (m) =>
@@ -122,33 +92,12 @@ export const useAnclaStore = create<AnclaStore>((set) => ({
       chatMessages: [],
       sessionToken: typeof crypto !== 'undefined' ? crypto.randomUUID() : 'server-ssr',
       lastActivity: null,
-      riskLevel: 0,
       anaState: 'listening',
-      analysisPatterns: [],
-      analysisJobId: null,
-      analysisResult: null,
-      ocrText: null,
       escudoResult: null,
       folio: '',
       hashHex: '',
       reporteId: null,
     }),
-
-  analysisPatterns: [],
-  setAnalysisPatterns: (p) => set({ analysisPatterns: p }),
-  addAnalysisPatterns: (p) =>
-    set((state) => ({
-      analysisPatterns: Array.from(new Set([...state.analysisPatterns, ...p])),
-    })),
-
-  analysisJobId: null,
-  setAnalysisJobId: (id) => set({ analysisJobId: id }),
-
-  analysisResult: null,
-  setAnalysisResult: (r) => set({ analysisResult: r }),
-
-  ocrText: null,
-  setOcrText: (t) => set({ ocrText: t }),
 
   escudoResult: null,
   setEscudoResult: (r) => set({ escudoResult: r }),
