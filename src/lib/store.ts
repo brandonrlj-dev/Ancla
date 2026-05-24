@@ -19,6 +19,15 @@ export interface AnalysisResult {
   resumen_comportamiento: string;
 }
 
+export interface EscudoSessionResult {
+  nivelRiesgo: 'ALTO' | 'MEDIO' | 'BAJO';
+  score: number;
+  patronesDetectados: string[];
+  plataforma: string;
+  identificador?: string;
+  ocrText?: string;
+}
+
 interface AnclaStore {
   /* ANA avatar state */
   anaState: AnaState;
@@ -69,6 +78,10 @@ interface AnclaStore {
   ocrText: string | null;
   setOcrText: (t: string | null) => void;
 
+  /* Escudo questionnaire result — passed to Ancla for pre-filling */
+  escudoResult: EscudoSessionResult | null;
+  setEscudoResult: (r: EscudoSessionResult | null) => void;
+
   /* Report identity — computed once on analisis page, read on reporte page */
   folio: string;
   setFolio: (f: string) => void;
@@ -115,6 +128,7 @@ export const useAnclaStore = create<AnclaStore>((set) => ({
       analysisJobId: null,
       analysisResult: null,
       ocrText: null,
+      escudoResult: null,
       folio: '',
       hashHex: '',
       reporteId: null,
@@ -135,6 +149,9 @@ export const useAnclaStore = create<AnclaStore>((set) => ({
 
   ocrText: null,
   setOcrText: (t) => set({ ocrText: t }),
+
+  escudoResult: null,
+  setEscudoResult: (r) => set({ escudoResult: r }),
 
   folio: '',
   setFolio: (f) => set({ folio: f }),
