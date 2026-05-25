@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense, type ReactNode } from 'react';
+import { useState, useEffect, useRef, Suspense, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter, useSearchParams } from 'next/navigation';
 import useMediaQuery from '@mui/material/useMediaQuery';
@@ -18,6 +18,7 @@ const CATEGORIES = [
       { name: 'Suspiro Fisiológico', desc: 'Dos inhalaciones seguidas y una exhalación larga activan el sistema parasimpático en segundos. La técnica más rápida contra el pánico agudo.', time: '< 2 MIN', fase: '1', color: '#5b81a8' },
       { name: 'Respiración Diafragmática', desc: 'Inhala despacio llevando el aire hacia el abdomen. Activa la respuesta de calma sin esfuerzo ni conteos complejos.', time: '~ 2 MIN', fase: '4', color: '#7299bc' },
       { name: 'Burbujas de Calma', desc: 'Toca las burbujas para soltarlas. Una distracción visual suave que ayuda a bajar la tensión sin esfuerzo.', time: '~ 2 MIN', fase: '9', color: '#89afd1' },
+      { name: 'Tensión y Liberación', desc: 'Aprieta los puños, sostén la tensión y suéltala. Una descarga física rápida para ansiedad intensa, enojo o sensación de que te vas a desbordar.', time: '< 2 MIN', fase: '13', color: '#6a8aaa' },
     ],
   },
   {
@@ -719,61 +720,116 @@ function Phase8({ onDone }: { onDone: () => void }) {
    FASE 9 — Burbujas de Calma
 ═══════════════════════════════════════════════════════ */
 
-const BUBBLE_WORDS = ['Suelta', 'Respira', 'Aquí', 'Ahora', 'Poco a poco', 'Calma', 'Presente', 'Seguro'];
+const CALM_COLORS = [
+  '#7299bc', '#89afd1', '#5b81a8', '#a0c4e2', '#6b9fcb',
+  '#8a9e7a', '#7a9570', '#6b7f5e',
+  '#c4a882', '#b8956f', '#a8855c',
+];
+
+type CalmBubble = {
+  id: number; x: number; y: number; size: number; color: string;
+  dx: number[]; dy: number[]; dur: number;
+};
+
+function makeCalmBubble(id: number): CalmBubble {
+  const d = 55 + Math.random() * 85;
+  const r = () => (Math.random() - 0.5) * 2;
+  return {
+    id,
+    x: 6 + Math.random() * 86,
+    y: 6 + Math.random() * 82,
+    size: 64 + Math.floor(Math.random() * 72),
+    color: CALM_COLORS[Math.floor(Math.random() * CALM_COLORS.length)],
+    dx: [0, r() * d, r() * d * 0.6, r() * d * 1.3, r() * d * 0.4, 0],
+    dy: [0, r() * d * 0.7, r() * d * 1.2, r() * d * 0.5, r() * d * 1.1, 0],
+    dur: 8 + Math.random() * 7,
+  };
+}
 
 function Phase9({ onDone }: { onDone: () => void }) {
-  const [popped, setPopped] = useState<Set<number>>(new Set());
-  const allPopped = popped.size === BUBBLE_WORDS.length;
+  const nid = useRef(0);
+  const [bubbles, setBubbles] = useState<CalmBubble[]>([]);
+  const [exiting, setExiting] = useState(false);
+
+  useEffect(() => {
+    setBubbles(Array.from({ length: 9 }, () => makeCalmBubble(nid.current++)));
+
+    let t: ReturnType<typeof setTimeout>;
+    const sched = () => {
+      t = setTimeout(() => {
+        setBubbles(p => p.length < 20 ? [...p, makeCalmBubble(nid.current++)] : p);
+        sched();
+      }, 700 + Math.random() * 900);
+    };
+    sched();
+    return () => clearTimeout(t);
+  }, []);
+
+  const pop = (id: number) => {
+    if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(60);
+    setBubbles(p => p.filter(b => b.id !== id));
+  };
+
+  const handleDone = () => {
+    setExiting(true);
+    setTimeout(onDone, 380);
+  };
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-      style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 32, width: '100%' }}>
-      <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: C.faint, textAlign: 'center', margin: 0 }}>
-        Toca las burbujas para soltarlas.
-      </p>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 20, justifyContent: 'center', minHeight: 260 }}>
-        <AnimatePresence>
-          {BUBBLE_WORDS.map((word, i) =>
-            !popped.has(i) ? (
-              <motion.button
-                key={i}
-                initial={{ scale: 0.5, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 1.5, opacity: 0 }}
-                transition={{ duration: 0.65, ease: [0.4, 0, 0.2, 1] }}
-                onClick={() => {
-                  if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(80);
-                  setPopped(p => new Set([...p, i]));
-                }}
-                style={{
-                  width: 100, height: 100, borderRadius: '50%',
-                  background: 'radial-gradient(ellipse at 35% 30%, #a0c4e2cc 0%, #7299bc 60%, #5b81a8dd 100%)',
-                  boxShadow: '0 8px 28px rgba(91,129,168,0.22), inset 0 -4px 10px rgba(0,0,0,0.08), inset 0 6px 12px rgba(255,255,255,0.3)',
-                  border: 'none', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 400,
-                  color: 'rgba(255,255,255,0.92)', textAlign: 'center', padding: 8, lineHeight: 1.3,
-                }}
-              >
-                {word}
-              </motion.button>
-            ) : null
-          )}
-        </AnimatePresence>
+    <motion.div
+      animate={{ opacity: exiting ? 0 : 1 }}
+      transition={{ duration: 0.38 }}
+      style={{ position: 'fixed', inset: 0, zIndex: 5, background: C.bg }}
+    >
+      <AnimatePresence>
+        {bubbles.map(b => (
+          <motion.div
+            key={b.id}
+            initial={{ opacity: 0, scale: 0 }}
+            animate={{ opacity: 0.78, scale: 1, x: b.dx, y: b.dy }}
+            exit={{ opacity: 0, scale: 1.9, transition: { duration: 0.55, ease: 'easeOut' } }}
+            transition={{
+              opacity: { duration: 0.9 },
+              scale: { duration: 0.9, type: 'spring', bounce: 0.2 },
+              x: { duration: b.dur, repeat: Infinity, repeatType: 'reverse', ease: 'easeInOut' },
+              y: { duration: b.dur * 0.85, repeat: Infinity, repeatType: 'reverse', ease: 'easeInOut' },
+            }}
+            onClick={() => pop(b.id)}
+            style={{
+              position: 'absolute',
+              left: `${b.x}%`,
+              top: `${b.y}%`,
+              marginLeft: -b.size / 2,
+              marginTop: -b.size / 2,
+              width: b.size,
+              height: b.size,
+              borderRadius: '50%',
+              background: `radial-gradient(ellipse at 35% 28%, ${b.color}bb 0%, ${b.color}88 55%, ${b.color}44 100%)`,
+              boxShadow: `0 0 ${b.size * 0.5}px ${b.color}55, 0 0 ${b.size * 1.1}px ${b.color}22`,
+              cursor: 'pointer',
+            }}
+          />
+        ))}
+      </AnimatePresence>
+
+      <div style={{ position: 'absolute', bottom: 40, left: '50%', transform: 'translateX(-50%)', zIndex: 2 }}>
+        <motion.button
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 2 }}
+          whileTap={{ scale: 0.97 }}
+          onClick={handleDone}
+          style={{
+            padding: '13px 32px', borderRadius: 999,
+            background: 'rgba(245,242,238,0.88)', backdropFilter: 'blur(10px)',
+            border: '1px solid rgba(44,44,42,0.14)',
+            fontFamily: 'var(--font-body)', fontSize: 14, color: C.muted,
+            cursor: 'pointer', letterSpacing: '0.02em', whiteSpace: 'nowrap',
+          }}
+        >
+          Ya fue suficiente
+        </motion.button>
       </div>
-      {allPopped ? (
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, width: '100%', maxWidth: 280 }}>
-          <p style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 400, color: C.muted, textAlign: 'center', margin: 0 }}>
-            Bien. Soltaste todo.
-          </p>
-          <Btn onClick={onDone}>Continuar</Btn>
-        </motion.div>
-      ) : (
-        <div style={{ width: '100%', maxWidth: 280 }}>
-          <Btn variant="ghost" onClick={onDone}>Terminar</Btn>
-        </div>
-      )}
     </motion.div>
   );
 }
@@ -989,6 +1045,143 @@ function Phase12({ onDone, onFallback }: { onDone: () => void; onFallback: (fase
 }
 
 /* ═══════════════════════════════════════════════════════
+   FASE 13 — Tensión y Liberación con Puños
+═══════════════════════════════════════════════════════ */
+
+type FistShape = 'open' | 'tight' | 'loose';
+
+const TENSION_SEQ: { main: string; sub: string; shape: FistShape; ms: number; vibe: number | null }[] = [
+  { main: 'Inhala profundo.',   sub: 'Llena tus pulmones lentamente.',                      shape: 'open',  ms: 3000, vibe: null },
+  { main: 'Aprieta los puños.', sub: 'Fuerte, pero sin lastimarte.',                         shape: 'tight', ms: 5000, vibe: 180  },
+  { main: 'Afloja las manos.',  sub: 'Siente cómo baja la tensión.',                         shape: 'loose', ms: 1200, vibe: 80   },
+  { main: 'Exhala lento.',      sub: 'Suelta el aire como si dejaras ir un poco del miedo.', shape: 'open',  ms: 5500, vibe: null  },
+];
+
+const FIST_CONFIG: Record<FistShape, { scale: number; borderRadius: string; opacity: number }> = {
+  open:  { scale: 1.05, borderRadius: '50%', opacity: 0.72 },
+  tight: { scale: 1.22, borderRadius: '20%', opacity: 0.92 },
+  loose: { scale: 1.0,  borderRadius: '36%', opacity: 0.80 },
+};
+
+function FistVisual({ shape }: { shape: FistShape }) {
+  const cfg = FIST_CONFIG[shape];
+  return (
+    <motion.div
+      animate={{ scale: cfg.scale, borderRadius: cfg.borderRadius, opacity: cfg.opacity }}
+      transition={{ duration: 0.65, ease: [0.4, 0, 0.2, 1] }}
+      style={{
+        width: 130, height: 130, flexShrink: 0,
+        background: 'radial-gradient(ellipse at 35% 30%, #8fa8c4cc 0%, #6a8aaa 60%, #567090dd 100%)',
+        boxShadow: '0 16px 50px rgba(91,129,168,0.32), inset 0 -10px 24px rgba(0,0,0,0.1), inset 0 10px 20px rgba(255,255,255,0.25)',
+      }}
+    />
+  );
+}
+
+function Phase13({ onDone }: { onDone: () => void }) {
+  const [ui, setUi]     = useState<'idle' | 'running' | 'done'>('idle');
+  const [step, setStep] = useState(0);
+
+  useEffect(() => {
+    if (ui !== 'running') return;
+    const cur = TENSION_SEQ[step];
+    if (cur.vibe && typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(cur.vibe);
+    const t = setTimeout(() => {
+      if (step < TENSION_SEQ.length - 1) {
+        setStep(s => s + 1);
+      } else {
+        setUi('done');
+      }
+    }, cur.ms);
+    return () => clearTimeout(t);
+  }, [ui, step]);
+
+  const start = () => { setStep(0); setUi('running'); };
+
+  if (ui === 'done') return (
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+      style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24, width: '100%', maxWidth: 380, textAlign: 'center' }}>
+      <p style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 500, color: C.text, margin: 0 }}>Bien.</p>
+      <p style={{ fontFamily: 'var(--font-body)', fontSize: 15, color: C.muted, lineHeight: 1.7, margin: 0 }}>
+        Nota si tus manos, brazos o pecho se sienten un poco menos tensos.
+      </p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%', maxWidth: 280 }}>
+        <Btn onClick={start}>Repetir</Btn>
+        <Btn variant="ghost" onClick={onDone}>Volver al catálogo</Btn>
+      </div>
+    </motion.div>
+  );
+
+  if (ui === 'running') {
+    const cur = TENSION_SEQ[step];
+    return (
+      <AnimatePresence mode="wait">
+        <motion.div key={step}
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }} transition={{ duration: 0.2 }}
+          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 30, width: '100%', maxWidth: 380, textAlign: 'center' }}>
+
+          <FistVisual shape={cur.shape} />
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <p style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 400, color: C.text, margin: 0, lineHeight: 1.3 }}>
+              {cur.main}
+            </p>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 15, color: C.muted, lineHeight: 1.65, margin: 0 }}>
+              {cur.sub}
+            </p>
+          </div>
+
+          <div style={{ width: '100%', maxWidth: 280, height: 2, background: C.bdr, borderRadius: 1, overflow: 'hidden' }}>
+            <motion.div
+              key={`bar-${step}`}
+              initial={{ scaleX: 0 }}
+              animate={{ scaleX: 1 }}
+              transition={{ duration: cur.ms / 1000, ease: 'linear' }}
+              style={{ height: '100%', background: '#6a8aaa', borderRadius: 1, transformOrigin: 'left center' }}
+            />
+          </div>
+
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: C.faint, margin: 0 }}>
+            Aprieta fuerte, pero nunca hasta sentir dolor.
+          </p>
+
+          <button onClick={onDone}
+            style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: C.faint, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3, padding: 0 }}>
+            Si esto no se siente bien, elegir otro método
+          </button>
+        </motion.div>
+      </AnimatePresence>
+    );
+  }
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+      style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 30, width: '100%', maxWidth: 380, textAlign: 'center' }}>
+      <FistVisual shape="open" />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <p style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 500, color: C.text, margin: 0 }}>
+          Inhala, aprieta y suelta.
+        </p>
+        <p style={{ fontFamily: 'var(--font-body)', fontSize: 15, color: C.muted, lineHeight: 1.65, margin: 0 }}>
+          El ejercicio dura unos 15 segundos. Solo sigue las instrucciones que aparecen.
+        </p>
+      </div>
+      <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: C.faint, margin: 0 }}>
+        Aprieta fuerte, pero nunca hasta sentir dolor.
+      </p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%', maxWidth: 280 }}>
+        <Btn onClick={start}>Iniciar</Btn>
+        <button onClick={onDone}
+          style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: C.faint, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3, padding: 0 }}>
+          Si esto no se siente bien, elegir otro método
+        </button>
+      </div>
+    </motion.div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
    Vista de selección — agrupada por categoría
 ═══════════════════════════════════════════════════════ */
 
@@ -1120,25 +1313,26 @@ function SelectionView({ isMobile, router }: { isMobile: boolean; router: Return
    Vista de fase (ejercicio activo)
 ═══════════════════════════════════════════════════════ */
 
-const PHASE_META = [
-  { eyebrow: 'Descompresión Fisiológica', color: '#5b81a8', time: '< 2 min' },
-  { eyebrow: 'Grounding y Reconexión',    color: '#6b7f5e', time: '~ 3 min' },
-  { eyebrow: 'Procesamiento Cognitivo',   color: '#c4a882', time: '~ 5 min' },
-  { eyebrow: 'Respiración Diafragmática', color: '#7299bc', time: '~ 2 min' },
-  { eyebrow: 'Reacomodo Postural',        color: '#8a9e7a', time: '< 1 min' },
-  { eyebrow: 'Etiquetado Emocional',      color: '#b8956f', time: '< 1 min' },
-  { eyebrow: 'Categorías Mentales',       color: '#a8855c', time: '~ 2 min' },
-  { eyebrow: 'Conteo Hacia Atrás',        color: '#9a7650', time: '~ 2 min' },
-  { eyebrow: 'Burbujas de Calma',         color: '#89afd1', time: '~ 2 min' },
-  { eyebrow: 'Frases de Anclaje',         color: '#7a9570', time: '< 2 min' },
-  { eyebrow: 'Texturas de Anclaje',       color: '#6e8865', time: '< 2 min' },
-  { eyebrow: 'Olores de Anclaje',         color: '#5e7855', time: '< 2 min' },
-];
+const PHASE_META: Record<number, { eyebrow: string; color: string; time: string }> = {
+  1:  { eyebrow: 'Descompresión Fisiológica', color: '#5b81a8', time: '< 2 min' },
+  2:  { eyebrow: 'Grounding y Reconexión',    color: '#6b7f5e', time: '~ 3 min' },
+  3:  { eyebrow: 'Procesamiento Cognitivo',   color: '#c4a882', time: '~ 5 min' },
+  4:  { eyebrow: 'Respiración Diafragmática', color: '#7299bc', time: '~ 2 min' },
+  5:  { eyebrow: 'Reacomodo Postural',        color: '#8a9e7a', time: '< 1 min' },
+  6:  { eyebrow: 'Etiquetado Emocional',      color: '#b8956f', time: '< 1 min' },
+  7:  { eyebrow: 'Categorías Mentales',       color: '#a8855c', time: '~ 2 min' },
+  8:  { eyebrow: 'Conteo Hacia Atrás',        color: '#9a7650', time: '~ 2 min' },
+  9:  { eyebrow: 'Burbujas de Calma',         color: '#89afd1', time: '~ 2 min' },
+  10: { eyebrow: 'Frases de Anclaje',         color: '#7a9570', time: '< 2 min' },
+  11: { eyebrow: 'Texturas de Anclaje',       color: '#6e8865', time: '< 2 min' },
+  12: { eyebrow: 'Olores de Anclaje',         color: '#5e7855', time: '< 2 min' },
+  13: { eyebrow: 'Descarga de Tensión',       color: '#6a8aaa', time: '< 2 min' },
+};
 
-type FaseNum = 1|2|3|4|5|6|7|8|9|10|11|12;
+type FaseNum = 1|2|3|4|5|6|7|8|9|10|11|12|13;
 
 function PhaseView({ fase, router, isMobile }: { fase: FaseNum; router: ReturnType<typeof useRouter>; isMobile: boolean }) {
-  const m = PHASE_META[fase - 1];
+  const m = PHASE_META[fase];
   const handleDone = () => router.push('/joven/regulacion');
 
   return (
@@ -1174,6 +1368,7 @@ function PhaseView({ fase, router, isMobile }: { fase: FaseNum; router: ReturnTy
           {fase === 10 && <Phase10 onDone={handleDone} />}
           {fase === 11 && <Phase11 onDone={handleDone} />}
           {fase === 12 && <Phase12 onDone={handleDone} onFallback={f => router.push(`/joven/regulacion?fase=${f}`)} />}
+          {fase === 13 && <Phase13 onDone={handleDone} />}
         </motion.div>
       </AnimatePresence>
     </>
@@ -1184,7 +1379,7 @@ function PhaseView({ fase, router, isMobile }: { fase: FaseNum; router: ReturnTy
    Main
 ═══════════════════════════════════════════════════════ */
 
-const VALID_FASES = ['1','2','3','4','5','6','7','8','9','10','11','12'];
+const VALID_FASES = ['1','2','3','4','5','6','7','8','9','10','11','12','13'];
 
 function RegulacionInner() {
   const router       = useRouter();
