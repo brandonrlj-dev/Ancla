@@ -4,8 +4,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useEffect, useState, useTransition } from 'react';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { Heart, Clock, Link2, CheckCircle, AlertCircle, Loader2, Users, Shield } from 'lucide-react';
-import { getReportes, updateReporteEstado } from '@/actions/policia';
-import { mapReporteRow, type ReporteRow } from '@/lib/policia-types';
+import { getReportes, updateReporteEstado, decryptContacto } from '@/actions/policia';
+import { mapReporteRow, type ReporteRow, type ContactoDecifrado } from '@/lib/policia-types';
 import { createClient } from '@/lib/supabase/client';
 
 const urgencyColors: Record<string, string> = {
@@ -59,8 +59,16 @@ function ReporteCard({ rep, onUpdateEstado }: {
   rep: ReporteRow;
   onUpdateEstado: (id: string, estado: 'en_revision' | 'procesado') => void;
 }) {
-  const isMobile  = useMediaQuery('(max-width: 768px)');
+  const isMobile                       = useMediaQuery('(max-width: 768px)');
+  const [contacto,   setContacto]      = useState<ContactoDecifrado | null>(null);
+  const [loadingCtx, setLoadingCtx]    = useState(false);
   const urgency   = deriveUrgency(rep);
+
+  async function handleVerContacto() {
+    setLoadingCtx(true);
+    try { setContacto(await decryptContacto(rep.id)); }
+    finally { setLoadingCtx(false); }
+  }
   const status    = estadoConfig[rep.estado] ?? estadoConfig['nuevo'];
   const StatusIcon = status.icon;
   const isNew     = rep.estado === 'nuevo';
@@ -144,7 +152,7 @@ function ReporteCard({ rep, onUpdateEstado }: {
       </div>
 
       {/* Action bar */}
-      <div style={{ padding: '12px 20px', borderTop: '1px solid var(--color-border-subtle)', background: 'var(--color-gray-50)', display: 'flex', gap: 10 }}>
+      <div style={{ padding: '12px 20px', borderTop: '1px solid var(--color-border-subtle)', background: 'var(--color-gray-50)', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
         {isNew && (
           <button
             onClick={() => onUpdateEstado(rep.id, 'en_revision')}
@@ -166,7 +174,42 @@ function ReporteCard({ rep, onUpdateEstado }: {
             Caso atendido
           </span>
         )}
+        {rep.tieneContacto && !contacto && (
+          <button
+            onClick={handleVerContacto}
+            disabled={loadingCtx}
+            style={{ marginLeft: 'auto', padding: '7px 16px', borderRadius: 999, border: '1px solid var(--color-calm-300)', cursor: loadingCtx ? 'not-allowed' : 'pointer', background: 'var(--color-calm-50)', color: 'var(--color-calm-700)', fontFamily: 'var(--font-body)', fontSize: '0.78rem', fontWeight: 500, opacity: loadingCtx ? 0.6 : 1, transition: 'opacity 150ms' }}
+          >
+            {loadingCtx ? 'Descifrando…' : 'Ver contacto'}
+          </button>
+        )}
       </div>
+
+      {/* Decrypted contact — shown once, not persisted */}
+      {contacto && (
+        <div style={{ padding: '14px 20px', borderTop: '1px solid var(--color-calm-200)', background: 'var(--color-calm-50)', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.72rem', fontWeight: 600, color: 'var(--color-calm-700)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            Contacto descifrado · solo visible en sesión
+          </span>
+          {contacto.victima && (
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.85rem', color: 'var(--color-text-primary)' }}>
+              {contacto.victima}
+            </span>
+          )}
+          {contacto.familiar && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {contacto.familiar.nombre && (
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>
+                  {contacto.familiar.nombre}
+                </span>
+              )}
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.85rem', color: 'var(--color-text-primary)' }}>
+                {contacto.familiar.contacto}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
     </motion.div>
   );
 }

@@ -1,11 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import useMediaQuery from '@mui/material/useMediaQuery';
-import { AlertTriangle, Filter, ExternalLink, Clock, MapPin, Smartphone } from 'lucide-react';
-import { alertRows } from '@/lib/mock-data';
+import { AlertTriangle, Filter, MapPin, Smartphone } from 'lucide-react';
+import { getAlertas } from '@/actions/policia';
+import { type AlertaRow } from '@/lib/policia-types';
+import { createClient } from '@/lib/supabase/client';
 
 const urgencyColors: Record<string, string> = {
   critica: '#ef4444',
@@ -21,29 +23,46 @@ const urgencyLabels: Record<string, string> = {
   baja:    'Baja',
 };
 
-const phaseLabels: Record<number, string> = {
-  1: 'Selección',
-  2: 'Acceso',
-  3: 'Confianza',
-  4: 'Aislamiento',
-  5: 'Explotación',
+const estadoLabels: Record<string, string> = {
+  nueva:             'Nueva',
+  en_investigacion:  'En investigación',
+  resuelta:          'Resuelta',
+  archivada:         'Archivada',
 };
 
 const FILTERS = ['Todas', 'Crítica', 'Alta', 'Media', 'Baja'] as const;
 type Filter = typeof FILTERS[number];
 
 function formatTimestamp(ts: string) {
-  const d = new Date(ts);
-  return d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+  return new Date(ts).toLocaleDateString('es-MX', {
+    day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
+  });
 }
 
 export default function AlertasPage() {
-  const router    = useRouter();
-  const isMobile  = useMediaQuery('(max-width: 768px)');
-  const [active, setActive] = useState<Filter>('Todas');
+  const router   = useRouter();
+  const isMobile = useMediaQuery('(max-width: 768px)');
+  const [alertas, setAlertas] = useState<AlertaRow[]>([]);
+  const [active,  setActive]  = useState<Filter>('Todas');
 
-  const filtered = alertRows.filter((r) =>
-    active === 'Todas' ? true : urgencyLabels[r.urgency] === active
+  useEffect(() => {
+    getAlertas().then(setAlertas);
+  }, []);
+
+  // Realtime: refetch on insert or update
+  useEffect(() => {
+    const supabase = createClient();
+    const ch = supabase
+      .channel('alertas-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'alertas' }, () => {
+        getAlertas().then(setAlertas);
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, []);
+
+  const filtered = alertas.filter((r) =>
+    active === 'Todas' ? true : urgencyLabels[r.nivelUrgencia] === active,
   );
 
   return (
@@ -55,16 +74,12 @@ export default function AlertasPage() {
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>
             Alertas activas
           </h1>
-          <span style={{
-            background: 'var(--color-terra-500)', color: 'white',
-            borderRadius: 999, padding: '2px 9px',
-            fontSize: '0.72rem', fontFamily: 'var(--font-mono)', fontWeight: 700,
-          }}>
-            {alertRows.length}
+          <span style={{ background: 'var(--color-terra-500)', color: 'white', borderRadius: 999, padding: '2px 9px', fontSize: '0.72rem', fontFamily: 'var(--font-mono)', fontWeight: 700 }}>
+            {filtered.length}
           </span>
         </div>
         <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.82rem', color: 'var(--color-text-tertiary)' }}>
-          Monitoreando {alertRows.length} casos · Actualizado hace 3 min
+          Monitoreando {alertas.length} casos · Actualización en tiempo real
         </p>
       </motion.div>
 
@@ -75,18 +90,14 @@ export default function AlertasPage() {
       >
         <Filter size={14} color="var(--color-text-tertiary)" />
         {FILTERS.map((f) => (
-          <button
-            key={f}
-            onClick={() => setActive(f)}
-            style={{
-              padding: '6px 14px', borderRadius: 999, border: 'none', cursor: 'pointer',
-              fontFamily: 'var(--font-body)', fontSize: '0.8rem', fontWeight: active === f ? 600 : 400,
-              background: active === f ? '#2c3e50' : 'white',
-              color: active === f ? 'white' : 'var(--color-text-secondary)',
-              boxShadow: active === f ? 'none' : 'var(--shadow-sm)',
-              transition: 'all 180ms',
-            }}
-          >
+          <button key={f} onClick={() => setActive(f)} style={{
+            padding: '6px 14px', borderRadius: 999, border: 'none', cursor: 'pointer',
+            fontFamily: 'var(--font-body)', fontSize: '0.8rem', fontWeight: active === f ? 600 : 400,
+            background: active === f ? '#2c3e50' : 'white',
+            color: active === f ? 'white' : 'var(--color-text-secondary)',
+            boxShadow: active === f ? 'none' : 'var(--shadow-sm)',
+            transition: 'all 180ms',
+          }}>
             {f}
           </button>
         ))}
@@ -99,10 +110,10 @@ export default function AlertasPage() {
           style={{ background: 'white', borderRadius: 16, boxShadow: 'var(--shadow-sm)', border: '1px solid var(--color-border-subtle)', overflow: 'hidden' }}
         >
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 720 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 680 }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--color-border-subtle)', background: 'var(--color-gray-50)' }}>
-                  {['Urgencia', 'Folio', 'Resumen', 'Zona', 'Edad', 'Plataforma', 'Fase', 'Timestamp', ''].map((h) => (
+                  {['Urgencia', 'Ref', 'Plataforma(s)', 'Zona', 'Víctimas', 'Estado', 'Timestamp', ''].map((h) => (
                     <th key={h} style={{ padding: '12px 16px', textAlign: 'left', fontFamily: 'var(--font-body)', fontSize: '0.72rem', fontWeight: 600, color: 'var(--color-text-tertiary)', letterSpacing: '0.05em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
                       {h}
                     </th>
@@ -125,61 +136,52 @@ export default function AlertasPage() {
                     >
                       <td style={{ padding: '14px 16px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <div style={{ width: 10, height: 10, borderRadius: '50%', background: urgencyColors[row.urgency], flexShrink: 0 }} />
-                          <span style={{ fontSize: '0.75rem', fontFamily: 'var(--font-body)', fontWeight: 600, color: urgencyColors[row.urgency] }}>
-                            {urgencyLabels[row.urgency]}
+                          <div style={{ width: 10, height: 10, borderRadius: '50%', background: urgencyColors[row.nivelUrgencia] ?? '#999', flexShrink: 0 }} />
+                          <span style={{ fontSize: '0.75rem', fontFamily: 'var(--font-body)', fontWeight: 600, color: urgencyColors[row.nivelUrgencia] ?? '#999' }}>
+                            {urgencyLabels[row.nivelUrgencia] ?? row.nivelUrgencia}
                           </span>
                         </div>
                       </td>
                       <td style={{ padding: '14px 16px' }}>
-                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.72rem', color: 'var(--color-text-tertiary)' }}>{row.folio}</span>
-                      </td>
-                      <td style={{ padding: '14px 16px', maxWidth: 220 }}>
-                        <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.83rem', color: 'var(--color-text-primary)', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {row.summary}
+                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.72rem', color: 'var(--color-text-tertiary)' }}>
+                          ALT-{row.id.slice(0, 6).toUpperCase()}
                         </span>
-                        {row.linked && (
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, marginTop: 3, fontSize: '0.68rem', color: 'var(--color-terra-500)', fontFamily: 'var(--font-body)', fontWeight: 500 }}>
-                            <ExternalLink size={10} /> Vinculado
-                          </span>
-                        )}
-                      </td>
-                      <td style={{ padding: '14px 16px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                          <MapPin size={11} color="var(--color-text-tertiary)" />
-                          <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>{row.zone}</span>
-                        </div>
-                      </td>
-                      <td style={{ padding: '14px 16px' }}>
-                        <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>{row.age}</span>
                       </td>
                       <td style={{ padding: '14px 16px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                           <Smartphone size={11} color="var(--color-text-tertiary)" />
-                          <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>{row.platform}</span>
+                          <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
+                            {row.plataformas.join(', ')}
+                          </span>
                         </div>
-                      </td>
-                      <td style={{ padding: '14px 16px' }}>
-                        <span style={{
-                          background: '#2c3e5014',
-                          color: '#2c3e50',
-                          borderRadius: 6,
-                          padding: '2px 8px',
-                          fontSize: '0.7rem',
-                          fontFamily: 'var(--font-body)',
-                          fontWeight: 500,
-                          whiteSpace: 'nowrap',
-                        }}>
-                          F{row.groomingPhase} · {phaseLabels[row.groomingPhase]}
-                        </span>
                       </td>
                       <td style={{ padding: '14px 16px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                          <Clock size={11} color="var(--color-text-tertiary)" />
-                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.72rem', color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap' }}>
-                            {formatTimestamp(row.timestamp)}
+                          <MapPin size={11} color="var(--color-text-tertiary)" />
+                          <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
+                            {row.zonaGeografica ?? '—'}
                           </span>
                         </div>
+                      </td>
+                      <td style={{ padding: '14px 16px', textAlign: 'center' }}>
+                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>
+                          {row.numVictimas}
+                        </span>
+                      </td>
+                      <td style={{ padding: '14px 16px' }}>
+                        <span style={{
+                          padding: '3px 9px', borderRadius: 999,
+                          fontSize: '0.68rem', fontFamily: 'var(--font-body)', fontWeight: 500, whiteSpace: 'nowrap',
+                          background: row.estado === 'en_investigacion' ? '#dbeafe' : row.estado === 'nueva' ? '#dcfce7' : '#f3f4f6',
+                          color:      row.estado === 'en_investigacion' ? '#1d4ed8' : row.estado === 'nueva' ? '#15803d' : '#6b7280',
+                        }}>
+                          {estadoLabels[row.estado] ?? row.estado}
+                        </span>
+                      </td>
+                      <td style={{ padding: '14px 16px' }}>
+                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.72rem', color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap' }}>
+                          {formatTimestamp(row.createdAt)}
+                        </span>
                       </td>
                       <td style={{ padding: '14px 16px' }}>
                         <span style={{ fontSize: '0.78rem', color: 'var(--color-calm-500)', fontFamily: 'var(--font-body)', fontWeight: 500 }}>Ver →</span>
@@ -187,6 +189,13 @@ export default function AlertasPage() {
                     </motion.tr>
                   ))}
                 </AnimatePresence>
+                {filtered.length === 0 && (
+                  <tr>
+                    <td colSpan={8} style={{ padding: '40px 16px', textAlign: 'center', fontFamily: 'var(--font-body)', fontSize: '0.85rem', color: 'var(--color-text-tertiary)', fontStyle: 'italic' }}>
+                      Sin alertas activas con este filtro
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -206,39 +215,42 @@ export default function AlertasPage() {
                 transition={{ delay: i * 0.05 }}
                 onClick={() => router.push(`/policia/alerta/${row.id}`)}
                 style={{
-                  background: 'white', borderRadius: 14,
-                  padding: '16px', boxShadow: 'var(--shadow-sm)',
-                  border: '1px solid var(--color-border-subtle)',
-                  borderLeft: `4px solid ${urgencyColors[row.urgency]}`,
+                  background: 'white', borderRadius: 14, padding: '16px',
+                  boxShadow: 'var(--shadow-sm)', border: '1px solid var(--color-border-subtle)',
+                  borderLeft: `4px solid ${urgencyColors[row.nivelUrgencia] ?? '#999'}`,
                   cursor: 'pointer',
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: urgencyColors[row.urgency] }} />
-                    <span style={{ fontSize: '0.72rem', fontWeight: 600, color: urgencyColors[row.urgency], fontFamily: 'var(--font-body)' }}>
-                      {urgencyLabels[row.urgency]}
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: urgencyColors[row.nivelUrgencia] ?? '#999' }} />
+                    <span style={{ fontSize: '0.72rem', fontWeight: 600, color: urgencyColors[row.nivelUrgencia] ?? '#999', fontFamily: 'var(--font-body)' }}>
+                      {urgencyLabels[row.nivelUrgencia] ?? row.nivelUrgencia}
                     </span>
                   </div>
-                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.68rem', color: 'var(--color-text-tertiary)' }}>{row.folio}</span>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.68rem', color: 'var(--color-text-tertiary)' }}>
+                    ALT-{row.id.slice(0, 6).toUpperCase()}
+                  </span>
                 </div>
                 <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.85rem', color: 'var(--color-text-primary)', marginBottom: 10, fontWeight: 500 }}>
-                  {row.summary}
+                  {row.plataformas.join(' + ')} · {row.numVictimas} {row.numVictimas === 1 ? 'víctima' : 'víctimas'}
                 </p>
                 <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.72rem', color: 'var(--color-text-secondary)', fontFamily: 'var(--font-body)' }}>
-                    <MapPin size={10} />{row.zone}
-                  </span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.72rem', color: 'var(--color-text-secondary)', fontFamily: 'var(--font-body)' }}>
-                    <Smartphone size={10} />{row.platform}
+                    <MapPin size={10} />{row.zonaGeografica ?? '—'}
                   </span>
                   <span style={{ fontSize: '0.72rem', color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-mono)' }}>
-                    F{row.groomingPhase} · {phaseLabels[row.groomingPhase]}
+                    {formatTimestamp(row.createdAt)}
                   </span>
                 </div>
               </motion.div>
             ))}
           </AnimatePresence>
+          {filtered.length === 0 && (
+            <div style={{ padding: '40px 0', textAlign: 'center', fontFamily: 'var(--font-body)', fontSize: '0.85rem', color: 'var(--color-text-tertiary)', fontStyle: 'italic' }}>
+              Sin alertas activas con este filtro
+            </div>
+          )}
         </div>
       )}
     </div>

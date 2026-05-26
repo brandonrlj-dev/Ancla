@@ -2,6 +2,8 @@
 
 import { createServiceClient } from '@/lib/supabase/service'
 
+// ── Encryption ────────────────────────────────────────────────────────────────
+
 async function encryptContact(plaintext: string): Promise<string> {
   const keyMaterial = await crypto.subtle.importKey(
     'raw',
@@ -23,6 +25,204 @@ async function encryptContact(plaintext: string): Promise<string> {
   return `${toB64(iv)}:${toB64(new Uint8Array(ciphertext))}`
 }
 
+// ── Embedding ─────────────────────────────────────────────────────────────────
+
+function buildAgressorText(plataforma: string, patterns: string[], identificador?: string): string {
+  const parts = [`plataforma: ${plataforma}`, `tacticas: ${patterns.join(', ')}`]
+  if (identificador) parts.push(`identificador: ${identificador}`)
+  return parts.join('. ')
+}
+
+async function getEmbedding(text: string): Promise<string> {
+  const key = process.env.GOOGLE_GENERATIVE_AI_API_KEY ?? process.env.GEMINI_API_KEY
+  if (!key) throw new Error('Gemini API key not configured')
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${key}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'models/text-embedding-004', content: { parts: [{ text }] } }),
+    },
+  )
+  if (!res.ok) throw new Error(`Gemini ${res.status}`)
+  const json = await res.json() as { embedding: { values: number[] } }
+  // pgvector expects "[v1,v2,...,v768]"
+  return `[${json.embedding.values.join(',')}]`
+}
+
+// ── Derivations ───────────────────────────────────────────────────────────────
+
+function deriveUrgency(patterns: string[]): string {
+  if (patterns.includes('amenaza_difusion')) return 'critica'
+  if (patterns.length >= 2) return 'alta'
+  if (patterns.length === 1) return 'media'
+  return 'baja'
+}
+
+function deriveRiesgo(patterns: string[]): string {
+  if (patterns.includes('amenaza_difusion')) return 'critico'
+  if (patterns.length >= 2) return 'alto'
+  return 'medio'
+}
+
+// ── Aggressor analysis ────────────────────────────────────────────────────────
+
+type Supabase = ReturnType<typeof createServiceClient>
+
+interface MatchRow {
+  perfil_id: string
+  similitud: number
+  num_reportes: number
+  nivel_riesgo: string
+}
+
+// Match found: insert vinculación as a suggestion without touching num_victimas.
+// If there's no open alerta for the perfil, create a new one tied to the same profile.
+// Score >= 0.95: escalate alerta urgency so the police notices immediately.
+async function handleMatch(
+  best: MatchRow,
+  reporteId: string,
+  plataforma: string,
+  patterns: string[],
+  supabase: Supabase,
+): Promise<void> {
+  const { data: alerta } = await supabase
+    .from('alertas')
+    .select('id, nivel_urgencia')
+    .eq('perfil_id', best.perfil_id)
+    .in('estado', ['nueva', 'en_investigacion'])
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  let alertaId: string
+
+  if (alerta) {
+    alertaId = alerta.id as string
+
+    // High confidence: escalate urgency — police must review this immediately
+    if (best.similitud >= 0.95 && alerta.nivel_urgencia !== 'critica') {
+      await supabase
+        .from('alertas')
+        .update({ nivel_urgencia: 'critica', updated_at: new Date().toISOString() })
+        .eq('id', alertaId)
+    }
+  } else {
+    // Matched perfil has no open case — open a new one for the same aggressor
+    const { data: newAlerta, error } = await supabase
+      .from('alertas')
+      .insert({
+        nivel_urgencia: deriveUrgency(patterns),
+        num_victimas:   1,
+        perfil_id:      best.perfil_id,
+        plataformas:    [plataforma],
+        zona_geografica: null,
+        estado:         'nueva',
+      })
+      .select('id')
+      .single()
+
+    if (error || !newAlerta) return
+    alertaId = newAlerta.id as string
+  }
+
+  // Insert as suggestion — police must confirm before num_victimas is updated
+  await supabase.from('vinculaciones').insert({
+    alerta_id:       alertaId,
+    reporte_id:      reporteId,
+    similitud_score: best.similitud,
+  })
+  // unique constraint (alerta_id, reporte_id) handles concurrent duplicates silently
+}
+
+// No match: create a new aggressor profile and a confirmed alerta linked to this report.
+async function createNewProfile(
+  embeddingStr: string,
+  reporteId: string,
+  plataforma: string,
+  patterns: string[],
+  supabase: Supabase,
+): Promise<void> {
+  const { data: perfil, error: perfilErr } = await supabase
+    .from('perfiles_agresores')
+    .insert({
+      patron_vector: embeddingStr,
+      plataformas:   [plataforma],
+      tacticas:      patterns,
+      nivel_riesgo:  deriveRiesgo(patterns),
+    })
+    .select('id')
+    .single()
+
+  if (perfilErr || !perfil) return
+
+  const { data: alerta, error: alertaErr } = await supabase
+    .from('alertas')
+    .insert({
+      nivel_urgencia:  deriveUrgency(patterns),
+      num_victimas:    1,
+      perfil_id:       perfil.id,
+      plataformas:     [plataforma],
+      zona_geografica: null,
+      estado:          'nueva',
+    })
+    .select('id')
+    .single()
+
+  if (alertaErr || !alerta) return
+
+  // Link the report to its confirmed alerta (new profile = not a suggestion)
+  await supabase
+    .from('reportes_directos')
+    .update({ alerta_id: alerta.id, updated_at: new Date().toISOString() })
+    .eq('id', reporteId)
+}
+
+async function analyzeAndLink(
+  reporteId: string,
+  plataforma: string,
+  patterns: string[],
+  identificador: string | undefined,
+  supabase: Supabase,
+): Promise<void> {
+  if (patterns.length === 0) return
+
+  const urgency = deriveUrgency(patterns)
+
+  try {
+    const embeddingStr = await getEmbedding(buildAgressorText(plataforma, patterns, identificador))
+
+    // Vector search via HNSW index; already filtered by platform threshold from config_plataformas
+    const { data: matches, error: rpcErr } = await supabase.rpc('buscar_perfil_similar', {
+      p_embedding:  embeddingStr,
+      p_plataforma: plataforma,
+    })
+
+    if (rpcErr) throw rpcErr
+
+    if (matches && (matches as MatchRow[]).length > 0) {
+      await handleMatch((matches as MatchRow[])[0], reporteId, plataforma, patterns, supabase)
+    } else {
+      await createNewProfile(embeddingStr, reporteId, plataforma, patterns, supabase)
+    }
+    return
+  } catch {
+    // Embedding or vector search failed — fall back to a basic alerta with no profile link
+    // so the police at least sees the report flagged, even without aggressor matching
+  }
+
+  await supabase.from('alertas').insert({
+    nivel_urgencia:  urgency,
+    num_victimas:    1,
+    perfil_id:       null,
+    plataformas:     [plataforma],
+    zona_geografica: null,
+    estado:          'nueva',
+  })
+}
+
+// ── Public API ────────────────────────────────────────────────────────────────
+
 function deriveReportType(patterns: string[]): string {
   if (patterns.includes('amenaza_difusion') || patterns.includes('solicitud_imagen')) return 'sextorsion'
   if (patterns.some((p) => ['gradualidad_sexual', 'love_bombing', 'secretismo'].includes(p))) return 'grooming'
@@ -36,9 +236,7 @@ export interface SubmitReportParams {
   plataforma: string
   identificador?: string
   tipoReporte: 'privado' | 'legal'
-  // Ruta privada: victim's own optional contact
   contacto?: string
-  // Ruta legal: family contact (required) + optional name
   contactoFamiliar?: string
   nombreFamiliar?: string
   sessionToken: string
@@ -53,52 +251,57 @@ export async function submitReport(params: SubmitReportParams): Promise<SubmitRe
   const supabase = createServiceClient()
   const tipo = deriveReportType(params.patterns)
 
-  // Victim's own contact — only relevant for ruta privada
   let contactoCifrado: string | null = null
   if (params.tipoReporte === 'privado' && params.contacto?.trim()) {
     contactoCifrado = await encryptContact(params.contacto.trim())
   }
 
-  // Family contact — only for ruta legal; encrypt as JSON {nombre, contacto}
   let contactoFamiliarCifrado: string | null = null
   if (params.tipoReporte === 'legal' && params.contactoFamiliar?.trim()) {
     const payload = JSON.stringify({
-      nombre: params.nombreFamiliar?.trim() ?? null,
+      nombre:   params.nombreFamiliar?.trim() ?? null,
       contacto: params.contactoFamiliar.trim(),
     })
     contactoFamiliarCifrado = await encryptContact(payload)
   }
 
-  // adulto_al_tanto: implicit TRUE for legal (youth provided family contact), NULL for private
   const adultoAlTanto = params.tipoReporte === 'legal' ? true : null
 
   const perfilAgresor = {
-    plataformas: [params.plataforma],
-    identificadores: params.identificador ? [params.identificador] : [],
-    telefono: null,
-    pais_estimado: 'MX',
-    tacticas: params.patterns,
+    plataformas:      [params.plataforma],
+    identificadores:  params.identificador ? [params.identificador] : [],
+    telefono:         null,
+    pais_estimado:    'MX',
+    tacticas:         params.patterns,
     descripcion_libre: null,
   }
 
   const { data, error } = await supabase
     .from('reportes_directos')
     .insert({
-      folio: params.folio,
-      hash_sha256: params.hashSha256,
-      plataforma: params.plataforma,
+      folio:                     params.folio,
+      hash_sha256:               params.hashSha256,
+      plataforma:                params.plataforma,
       tipo,
-      tipo_reporte: params.tipoReporte,
-      patrones: params.patterns,
-      perfil_agresor: perfilAgresor,
-      contacto_cifrado: contactoCifrado,
+      tipo_reporte:              params.tipoReporte,
+      patrones:                  params.patterns,
+      perfil_agresor:            perfilAgresor,
+      contacto_cifrado:          contactoCifrado,
       contacto_familiar_cifrado: contactoFamiliarCifrado,
-      adulto_al_tanto: adultoAlTanto,
-      estado: 'nuevo',
+      adulto_al_tanto:           adultoAlTanto,
+      estado:                    'nuevo',
     })
     .select('id, folio')
     .single()
 
   if (error) throw new Error(`[submitReport] ${error.message}`)
+
+  // Analysis runs after report is safely stored — any failure is silent
+  try {
+    await analyzeAndLink(data.id, params.plataforma, params.patterns, params.identificador, supabase)
+  } catch {
+    // intentionally silent
+  }
+
   return { reporteId: data.id, folio: data.folio }
 }

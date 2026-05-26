@@ -1,24 +1,25 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useEffect, useTransition } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LayoutDashboard, AlertTriangle, Heart, BarChart3, Menu, X, Bell, LogOut } from 'lucide-react';
 import AnclaLogo from '@/components/brand/AnclaLogo';
 import Jumper from '@/components/nav/Jumper';
-import { kpis } from '@/lib/mock-data';
 import { logoutPolicia } from '@/actions/auth';
+import { getDashboardData } from '@/actions/policia';
+import { createClient } from '@/lib/supabase/client';
 
 const SIDEBAR_BG = '#2c3e50';
 const SIDEBAR_W  = 280;
 const TOP_H      = 56;
 
-const navItems = [
-  { href: '/policia',              label: 'Dashboard',         icon: LayoutDashboard, badge: null,               exact: true  },
-  { href: '/policia/alertas',      label: 'Alertas',           icon: AlertTriangle,   badge: kpis.activeAlerts,  exact: false },
-  { href: '/policia/reportes',     label: 'Reportes directos', icon: Heart,           badge: kpis.directReports, exact: false },
-  { href: '/policia/estadisticas', label: 'Estadísticas',      icon: BarChart3,       badge: null,               exact: false },
+const NAV_BASE = [
+  { href: '/policia',              label: 'Dashboard',         icon: LayoutDashboard, badgeKey: null as null | 'alertasActivas' | 'totalReportes', exact: true  },
+  { href: '/policia/alertas',      label: 'Alertas',           icon: AlertTriangle,   badgeKey: 'alertasActivas' as const,                         exact: false },
+  { href: '/policia/reportes',     label: 'Reportes directos', icon: Heart,           badgeKey: 'totalReportes' as const,                          exact: false },
+  { href: '/policia/estadisticas', label: 'Estadísticas',      icon: BarChart3,       badgeKey: null,                                              exact: false },
 ];
 
 function isActive(pathname: string, href: string, exact: boolean) {
@@ -26,11 +27,12 @@ function isActive(pathname: string, href: string, exact: boolean) {
   return pathname.startsWith(href);
 }
 
-function NavItem({ item, pathname, router, onNav }: {
-  item: typeof navItems[0];
+function NavItem({ item, pathname, router, onNav, badge }: {
+  item: typeof NAV_BASE[0];
   pathname: string;
   router: ReturnType<typeof useRouter>;
   onNav?: () => void;
+  badge: number | null;
 }) {
   const active = isActive(pathname, item.href, item.exact);
   return (
@@ -50,27 +52,34 @@ function NavItem({ item, pathname, router, onNav }: {
       <span style={{ flex: 1, fontFamily: 'var(--font-body)', fontSize: '0.88rem', fontWeight: active ? 600 : 400, color: active ? '#dce8f0' : '#8aaac4', transition: 'color 200ms' }}>
         {item.label}
       </span>
-      {item.badge !== null && (
+      {badge !== null && badge > 0 && (
         <span style={{
           background: item.href.includes('reportes') ? '#6b7f5e' : '#bf6b4a',
           color: 'white', borderRadius: 999, padding: '2px 7px',
           fontSize: '0.65rem', fontFamily: 'var(--font-mono)', fontWeight: 700, flexShrink: 0,
         }}>
-          {(item.badge as number) > 99 ? '99+' : item.badge}
+          {badge > 99 ? '99+' : badge}
         </span>
       )}
     </button>
   );
 }
 
-function SidebarContent({ pathname, router, agentName, onNav }: {
+function SidebarContent({ pathname, router, agentName, onNav, alertasActivas, totalReportes }: {
   pathname: string;
   router: ReturnType<typeof useRouter>;
   agentName: string;
   onNav?: () => void;
+  alertasActivas: number;
+  totalReportes: number;
 }) {
   const [isPending, startTransition] = useTransition();
   const initials = agentName.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
+
+  const badges: Record<string, number | null> = {
+    alertasActivas,
+    totalReportes,
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: SIDEBAR_BG }}>
@@ -82,8 +91,15 @@ function SidebarContent({ pathname, router, agentName, onNav }: {
       </div>
 
       <nav style={{ flex: 1, padding: '12px 0', overflowY: 'auto' }}>
-        {navItems.map((item) => (
-          <NavItem key={item.href} item={item} pathname={pathname} router={router} onNav={onNav} />
+        {NAV_BASE.map((item) => (
+          <NavItem
+            key={item.href}
+            item={item}
+            pathname={pathname}
+            router={router}
+            onNav={onNav}
+            badge={item.badgeKey ? (badges[item.badgeKey] ?? null) : null}
+          />
         ))}
       </nav>
 
@@ -97,7 +113,7 @@ function SidebarContent({ pathname, router, agentName, onNav }: {
               {agentName}
             </div>
             <div style={{ fontSize: '0.68rem', color: '#8aaac4', fontFamily: 'var(--font-mono)' }}>
-              {kpis.directReports} activos hoy
+              {totalReportes} reportes activos
             </div>
           </div>
           <button
@@ -118,7 +134,30 @@ export default function PCLayoutClient({ children, agentName }: { children: Reac
   const pathname = usePathname();
   const router   = useRouter();
   const isMobile = useMediaQuery('(max-width: 768px)');
-  const [open, setOpen] = useState(false);
+  const [open,            setOpen]            = useState(false);
+  const [alertasActivas,  setAlertasActivas]  = useState(0);
+  const [totalReportes,   setTotalReportes]   = useState(0);
+
+  useEffect(() => {
+    getDashboardData().then((d) => {
+      setAlertasActivas(d.alertasActivas);
+      setTotalReportes(d.totalReportes);
+    });
+  }, []);
+
+  useEffect(() => {
+    const supabase = createClient();
+    const ch = supabase
+      .channel('sidebar-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'alertas' }, () => {
+        getDashboardData().then((d) => setAlertasActivas(d.alertasActivas));
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'reportes_directos' }, () => {
+        getDashboardData().then((d) => setTotalReportes(d.totalReportes));
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, []);
 
   if (pathname === '/policia/login') return <>{children}<Jumper /></>;
 
@@ -127,7 +166,7 @@ export default function PCLayoutClient({ children, agentName }: { children: Reac
       {/* Desktop sidebar */}
       {!isMobile && (
         <div style={{ width: SIDEBAR_W, flexShrink: 0 }}>
-          <SidebarContent pathname={pathname} router={router} agentName={agentName} />
+          <SidebarContent pathname={pathname} router={router} agentName={agentName} alertasActivas={alertasActivas} totalReportes={totalReportes} />
         </div>
       )}
 
@@ -153,7 +192,7 @@ export default function PCLayoutClient({ children, agentName }: { children: Reac
               style={{ position: 'fixed', inset: 0, zIndex: 250, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }} />
             <motion.div key="dr" initial={{ x: -SIDEBAR_W }} animate={{ x: 0 }} exit={{ x: -SIDEBAR_W }} transition={{ type: 'spring', damping: 28, stiffness: 280 }}
               style={{ position: 'fixed', top: 0, left: 0, bottom: 0, width: SIDEBAR_W, zIndex: 260 }}>
-              <SidebarContent pathname={pathname} router={router} agentName={agentName} onNav={() => setOpen(false)} />
+              <SidebarContent pathname={pathname} router={router} agentName={agentName} onNav={() => setOpen(false)} alertasActivas={alertasActivas} totalReportes={totalReportes} />
               <button onClick={() => setOpen(false)} aria-label="Cerrar menú"
                 style={{ position: 'absolute', top: 16, right: -44, background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%', width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                 <X size={18} color="white" />

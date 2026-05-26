@@ -133,9 +133,13 @@ create table vinculaciones (
   alerta_id       uuid        not null references alertas(id) on delete cascade,
   reporte_id      uuid        not null references reportes_directos(id) on delete cascade,
   similitud_score float       not null check (similitud_score >= 0 and similitud_score <= 1),
+  confirmada      boolean     not null default false,
   created_at      timestamptz not null default now(),
   unique (alerta_id, reporte_id)
 );
+
+-- If the table already exists, run:
+-- alter table vinculaciones add column if not exists confirmada boolean not null default false;
 
 -- ============================================================
 -- TABLE: jobs_analisis
@@ -304,6 +308,20 @@ create policy "agentes_insertan_suscripcion" on push_suscripciones
   for insert with check (agente_id = auth.uid());
 create policy "agentes_borran_su_suscripcion" on push_suscripciones
   for delete using (agente_id = auth.uid());
+
+-- ============================================================
+-- FUNCTION: incrementar_victimas
+-- Atomic num_victimas++ — avoids read-then-write race condition.
+-- ============================================================
+
+create or replace function incrementar_victimas(p_alerta_id uuid)
+returns void
+language sql security definer
+as $$
+  update alertas
+  set num_victimas = num_victimas + 1, updated_at = now()
+  where id = p_alerta_id;
+$$;
 
 -- ============================================================
 -- FUNCTION: es_agente_policial (already defined above)

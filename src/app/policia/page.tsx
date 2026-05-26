@@ -7,9 +7,8 @@ import useMediaQuery from '@mui/material/useMediaQuery';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { AlertTriangle, Heart, Users, Search, TrendingUp, TrendingDown, ArrowRight } from 'lucide-react';
 import NayaritMap from '@/components/viz/NayaritMap';
-import { kpis, weeklyTrend, alertRows } from '@/lib/mock-data';
-import { getDashboardData } from '@/actions/policia';
-import { type DashboardData, type ReporteRow } from '@/lib/policia-types';
+import { getDashboardData, getEstadisticas } from '@/actions/policia';
+import { type DashboardData, type ReporteRow, type AlertaRow, type EstadisticasData } from '@/lib/policia-types';
 import { createClient } from '@/lib/supabase/client';
 
 const urgencyColors: Record<string, string> = {
@@ -45,9 +44,11 @@ export default function PCDashboard() {
   const router   = useRouter();
   const isMobile = useMediaQuery('(max-width: 768px)');
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+  const [stats,     setStats]     = useState<EstadisticasData | null>(null);
 
   useEffect(() => {
     getDashboardData().then(setDashboard);
+    getEstadisticas().then(setStats);
   }, []);
 
   // Realtime: refetch on new reports
@@ -77,10 +78,10 @@ export default function PCDashboard() {
       {/* KPI cards */}
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 16, marginBottom: 28 }}>
         {[
-          { label: 'Alertas activas',        value: kpis.activeAlerts,                      trend: kpis.weeklyChange.alerts,    up: true,  icon: AlertTriangle, color: '#bf6b4a', href: '/policia/alertas' },
-          { label: 'Agresores identificados', value: kpis.aggressorsIdentified,              trend: kpis.weeklyChange.aggressors,up: true,  icon: Users,         color: '#9e4a28', href: '#' },
-          { label: 'Reportes directos',       value: dashboard?.totalReportes    ?? '—',     trend: kpis.weeklyChange.reports,   up: true,  icon: Heart,         color: '#6b7f5e', href: '/policia/reportes' },
-          { label: 'En revisión',             value: dashboard?.reportesEnRevision ?? '—',   trend: kpis.weeklyChange.cases,     up: false, icon: Search,        color: '#5b81a8', href: '/policia/reportes' },
+          { label: 'Alertas activas',          value: dashboard?.alertasActivas        ?? '—', trend: null, up: true,  icon: AlertTriangle, color: '#bf6b4a', href: '/policia/alertas'  },
+          { label: 'Agresores identificados', value: dashboard?.agresoresIdentificados ?? '—', trend: null, up: true,  icon: Users,         color: '#9e4a28', href: '#'                },
+          { label: 'Reportes directos',       value: dashboard?.totalReportes          ?? '—', trend: null, up: true,  icon: Heart,         color: '#6b7f5e', href: '/policia/reportes' },
+          { label: 'En revisión',             value: dashboard?.reportesEnRevision     ?? '—', trend: null, up: false, icon: Search,        color: '#5b81a8', href: '/policia/reportes' },
         ].map((kpi, i) => (
           <motion.div key={kpi.label} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }}
             style={{ background: 'white', borderRadius: 16, padding: '20px', boxShadow: 'var(--shadow-sm)', border: '1px solid var(--color-border-subtle)', cursor: 'pointer' }}
@@ -90,12 +91,14 @@ export default function PCDashboard() {
               <div style={{ width: 38, height: 38, borderRadius: 10, background: `${kpi.color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <kpi.icon size={18} color={kpi.color} />
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 999, background: kpi.up ? '#dcfce7' : '#fef9c3', border: `1px solid ${kpi.up ? '#bbf7d0' : '#fef08a'}` }}>
-                {kpi.up ? <TrendingUp size={12} color="#16a34a" /> : <TrendingDown size={12} color="#ca8a04" />}
-                <span style={{ fontSize: '0.7rem', fontFamily: 'var(--font-mono)', fontWeight: 600, color: kpi.up ? '#16a34a' : '#ca8a04' }}>
-                  {typeof kpi.trend === 'number' && kpi.trend > 0 ? '+' : ''}{kpi.trend}
-                </span>
-              </div>
+              {kpi.trend !== null && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 999, background: kpi.up ? '#dcfce7' : '#fef9c3', border: `1px solid ${kpi.up ? '#bbf7d0' : '#fef08a'}` }}>
+                  {kpi.up ? <TrendingUp size={12} color="#16a34a" /> : <TrendingDown size={12} color="#ca8a04" />}
+                  <span style={{ fontSize: '0.7rem', fontFamily: 'var(--font-mono)', fontWeight: 600, color: kpi.up ? '#16a34a' : '#ca8a04' }}>
+                    {typeof kpi.trend === 'number' && kpi.trend > 0 ? '+' : ''}{kpi.trend}
+                  </span>
+                </div>
+              )}
             </div>
             <div style={{ fontFamily: 'var(--font-body)', fontSize: '2rem', fontWeight: 700, color: 'var(--color-text-primary)', lineHeight: 1 }}>
               {kpi.value}
@@ -165,25 +168,33 @@ export default function PCDashboard() {
                 </motion.div>
               );
             })}
-            {/* Mock alerts below real reports */}
-            {alertRows.slice(0, 2).map((item, i) => (
-              <motion.div key={item.id} initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.4 + ((dashboard?.recentReportes.length ?? 0) + i) * 0.07 }}
-                onClick={() => router.push(`/policia/alerta/${item.id}`)}
-                style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 10, cursor: 'pointer', borderLeft: `3px solid ${urgencyColors[item.urgency] ?? '#999'}`, background: `${urgencyColors[item.urgency] ?? '#999'}08`, transition: 'filter 150ms' }}
-                onMouseEnter={(e) => { (e.currentTarget.style.filter = 'brightness(0.97)'); }}
-                onMouseLeave={(e) => { (e.currentTarget.style.filter = 'none'); }}
-              >
-                <div style={{ width: 10, height: 10, borderRadius: '50%', background: urgencyColors[item.urgency] ?? '#999', flexShrink: 0 }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--color-text-tertiary)' }}>{item.folio}</span>
-                    <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.78rem', color: 'var(--color-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.summary}</span>
+            {/* Real alertas feed */}
+            {(dashboard?.recentAlertas ?? []).map((alerta: AlertaRow, i: number) => {
+              const color = urgencyColors[alerta.nivelUrgencia] ?? '#999';
+              const plat  = alerta.plataformas[0] ?? 'Desconocida';
+              return (
+                <motion.div key={alerta.id} initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.4 + ((dashboard?.recentReportes.length ?? 0) + i) * 0.07 }}
+                  onClick={() => router.push('/policia/alertas')}
+                  style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 10, cursor: 'pointer', borderLeft: `3px solid ${color}`, background: `${color}08`, transition: 'filter 150ms' }}
+                  onMouseEnter={(e) => { (e.currentTarget.style.filter = 'brightness(0.97)'); }}
+                  onMouseLeave={(e) => { (e.currentTarget.style.filter = 'none'); }}
+                >
+                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: color, flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--color-text-tertiary)' }}>ALT-{alerta.id.slice(0, 6).toUpperCase()}</span>
+                      <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.78rem', color: 'var(--color-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        Alerta {alerta.nivelUrgencia} · {plat}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-body)' }}>
+                      {alerta.zonaGeografica ?? 'Nayarit'} · {timeAgo(alerta.createdAt)}
+                    </div>
                   </div>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-body)' }}>{item.zone} · dato de muestra</div>
-                </div>
-                <ArrowRight size={14} color="var(--color-text-tertiary)" />
-              </motion.div>
-            ))}
+                  <ArrowRight size={14} color="var(--color-text-tertiary)" />
+                </motion.div>
+              );
+            })}
             {!dashboard && (
               <div style={{ fontFamily: 'var(--font-body)', fontSize: '0.82rem', color: 'var(--color-text-tertiary)', padding: '8px 12px', fontStyle: 'italic' }}>
                 Cargando actividad reciente…
@@ -235,7 +246,7 @@ export default function PCDashboard() {
           Tendencia semanal — Anónimas vs Directos
         </div>
         <ResponsiveContainer width="100%" height={200}>
-          <AreaChart data={weeklyTrend}>
+          <AreaChart data={stats?.weeklyReportes ?? []}>
             <defs>
               <linearGradient id="anonGrad" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%"  stopColor="#5b81a8" stopOpacity={0.25} />
@@ -251,8 +262,8 @@ export default function PCDashboard() {
             <YAxis tick={{ fontSize: 11, fontFamily: 'var(--font-mono)' }} />
             <Tooltip contentStyle={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', borderRadius: 8, border: '1px solid #e2ddd6' }} />
             <Legend wrapperStyle={{ fontSize: '0.8rem', fontFamily: 'var(--font-body)' }} />
-            <Area type="monotone" dataKey="anonymous" name="Anónimas" stroke="#5b81a8" fill="url(#anonGrad)" strokeWidth={2} dot={false} />
-            <Area type="monotone" dataKey="direct"    name="Directos" stroke="#6b7f5e" fill="url(#directGrad)" strokeWidth={2} dot={false} />
+            <Area type="monotone" dataKey="privado" name="Anónimos"           stroke="#5b81a8" fill="url(#anonGrad)"   strokeWidth={2} dot={false} />
+            <Area type="monotone" dataKey="legal"   name="Con acompañamiento" stroke="#6b7f5e" fill="url(#directGrad)" strokeWidth={2} dot={false} />
           </AreaChart>
         </ResponsiveContainer>
       </motion.div>
