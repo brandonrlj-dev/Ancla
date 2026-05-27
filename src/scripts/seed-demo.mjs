@@ -45,13 +45,13 @@ const supabase = createClient(SUPABASE_URL, SERVICE_KEY, {
 
 async function embed(text) {
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${GEMINI_KEY}`,
+    `https://generativelanguage.googleapis.com/v1beta/${EMBED_MODEL}:embedContent?key=${GEMINI_KEY}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'models/text-embedding-004',
         content: { parts: [{ text }] },
+        outputDimensionality: 768,
       }),
     },
   )
@@ -62,6 +62,21 @@ async function embed(text) {
 
 function ok(label)    { console.log(`  ✓ ${label}`) }
 function fail(label, err) { console.error(`  ✗ ${label}: ${err.message}`); throw err }
+
+// ── Diagnóstico: listar modelos disponibles ───────────────────────────────────
+
+console.log('\n🔍 Modelos de embedding disponibles con esta API key...')
+const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${GEMINI_KEY}`)
+const listJson = await listRes.json()
+const embeddingModels = (listJson.models ?? []).filter(m => m.supportedGenerationMethods?.includes('embedContent'))
+if (embeddingModels.length === 0) {
+  console.error('  ✗ Ningún modelo de embedding disponible con esta key')
+  console.log('  Modelos disponibles (todos):', (listJson.models ?? []).map(m => m.name).join(', '))
+  process.exit(1)
+}
+console.log('  Modelos con embedContent:', embeddingModels.map(m => m.name).join(', '))
+const EMBED_MODEL = embeddingModels[0].name  // ej. "models/text-embedding-004"
+console.log(`  Usando: ${EMBED_MODEL}\n`)
 
 // ── Step 1: Agent accounts ────────────────────────────────────────────────────
 

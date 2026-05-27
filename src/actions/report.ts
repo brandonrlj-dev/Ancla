@@ -37,11 +37,11 @@ async function getEmbedding(text: string): Promise<string> {
   const key = process.env.GOOGLE_GENERATIVE_AI_API_KEY ?? process.env.GEMINI_API_KEY
   if (!key) throw new Error('Gemini API key not configured')
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${key}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=${key}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: 'models/text-embedding-004', content: { parts: [{ text }] } }),
+      body: JSON.stringify({ content: { parts: [{ text }] }, outputDimensionality: 768 }),
     },
   )
   if (!res.ok) throw new Error(`Gemini ${res.status}`)
