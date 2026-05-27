@@ -172,12 +172,12 @@ const GLOBAL_CSS = `
   50%     { transform: translateY(-4px) rotate(2deg); }
 }
 @keyframes ancla-bfly-flap-l {
-  0%,100% { transform: rotateY(0deg); }
-  50%     { transform: rotateY(58deg); }
+  0%,100% { transform: scaleX(1); }
+  50%     { transform: scaleX(0.18); }
 }
 @keyframes ancla-bfly-flap-r {
-  0%,100% { transform: rotateY(0deg); }
-  50%     { transform: rotateY(-58deg); }
+  0%,100% { transform: scaleX(1); }
+  50%     { transform: scaleX(0.18); }
 }
 @keyframes ancla-guide-bob {
   0%,100% { transform: translateY(0); }
@@ -213,6 +213,10 @@ const GLOBAL_CSS = `
 @keyframes ancla-bubble-rise {
   0%   { transform: translateY(0); opacity: 0.5; }
   100% { transform: translateY(-60px); opacity: 0; }
+}
+@keyframes ancla-bubble-appear {
+  from { opacity: 0; transform: scale(0.3); }
+  to   { opacity: 1; transform: scale(1); }
 }
 `;
 
@@ -1087,21 +1091,25 @@ const EFT = [
 function TapFaceMap({ active, color }: { active: number; color: string }) {
   return (
     <svg viewBox="0 0 100 100" width={200} height={200} style={{ overflow: 'visible' }}>
-      <ellipse cx="50" cy="38" rx="22" ry="26" fill={C.card} stroke={C.bdr} strokeWidth="0.6" />
-      <path d="M 18 78 Q 50 60 82 78 L 82 95 L 18 95 Z" fill={C.card} stroke={C.bdr} strokeWidth="0.6" />
+      {/* soft shadow beneath the doll */}
+      <ellipse cx="50" cy="95" rx="30" ry="2.5" fill="rgba(44,44,42,0.08)" />
+      
+      {/* doll head and body with high-contrast outlines */}
+      <ellipse cx="50" cy="38" rx="22" ry="26" fill="#FFFFFF" stroke="rgba(44,44,42,0.18)" strokeWidth="1.2" />
+      <path d="M 18 78 Q 50 60 82 78 L 82 95 L 18 95 Z" fill="#FFFFFF" stroke="rgba(44,44,42,0.18)" strokeWidth="1.2" />
       {EFT.map((pt, i) => {
         const isActive = pt.cx === EFT[active].cx && pt.cy === EFT[active].cy && i === active;
         const isDone   = i < active;
         return (
           <g key={pt.label}>
-            <circle cx={pt.cx} cy={pt.cy} r={isActive ? 4 : 2}
+            <circle cx={pt.cx} cy={pt.cy} r={isActive ? 4.5 : 2.5}
               fill={isActive ? color : isDone ? color + '88' : '#8B8780'}
               opacity={isActive ? 1 : isDone ? 0.7 : 0.5}
               style={{ transition: 'all .4s ease' }}
             />
             {isActive && (
-              <circle cx={pt.cx} cy={pt.cy} r="7" fill="none" stroke={color} strokeWidth="0.7" opacity="0.5">
-                <animate attributeName="r" values="4;9;4" dur="1.6s" repeatCount="indefinite" />
+              <circle cx={pt.cx} cy={pt.cy} r="7.5" fill="none" stroke={color} strokeWidth="0.8" opacity="0.5">
+                <animate attributeName="r" values="4.5;9.5;4.5" dur="1.6s" repeatCount="indefinite" />
                 <animate attributeName="opacity" values="0.5;0.05;0.5" dur="1.6s" repeatCount="indefinite" />
               </circle>
             )}
@@ -1112,7 +1120,7 @@ function TapFaceMap({ active, color }: { active: number; color: string }) {
   );
 }
 
-function Phase3({ router, color }: { router: ReturnType<typeof useRouter>; color: string }) {
+function Phase3({ onDone, router, color }: { onDone: () => void; router: ReturnType<typeof useRouter>; color: string }) {
   const [tStep, setTStep] = useState(0);
   const [ui, setUi]       = useState<'tapping' | 'psychoed'>('tapping');
   const round    = Math.floor(tStep / 4) + 1;
@@ -1134,8 +1142,8 @@ function Phase3({ router, color }: { router: ReturnType<typeof useRouter>; color
         Respira. Estás a salvo aquí.
       </p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%', maxWidth: 360 }}>
-        <LakeButton color={color} onClick={() => router.push('/joven/chat')}>Regresar con ANA</LakeButton>
-        <Btn variant="ghost" onClick={() => router.push('/joven/regulacion')}>Volver a los métodos</Btn>
+        <LakeButton color={color} onClick={onDone}>Volver al catálogo</LakeButton>
+        <Btn variant="ghost" onClick={() => router.push('/joven/chat')}>Regresar con ANA</Btn>
       </div>
     </CenteredFlow>
   );
@@ -1148,7 +1156,7 @@ function Phase3({ router, color }: { router: ReturnType<typeof useRouter>; color
         <p style={microStyle}>{EFT[pointIdx].label}</p>
         <p style={{ ...instructionStyle, fontStyle: 'italic', maxWidth: 360 }}>{EFT[pointIdx].text}</p>
       </FadeKey>
-      <Btn variant="quiet" onClick={() => router.push('/joven/regulacion')}>Detener</Btn>
+      <Btn variant="quiet" onClick={onDone}>Detener</Btn>
       <LakeButton color={color} onClick={advance}>Toqué este punto · siguiente</LakeButton>
     </CenteredFlow>
   );
@@ -1853,13 +1861,20 @@ function makeBubbleDef(id: string, active: BubbleDef[] = []): BubbleDef {
   const col = cell % B_COLS, row = Math.floor(cell / B_COLS);
   const colW = (B_X_MAX - B_X_MIN) / B_COLS, rowH = (B_Y_MAX - B_Y_MIN) / B_ROWS;
   const jX = (Math.random() - 0.5) * colW * 0.65, jY = (Math.random() - 0.5) * rowH * 0.65;
+  // caminata aleatoria suave: cada paso perturba levemente el anterior
+  let wx = (Math.random() - 0.5) * 6, wy = (Math.random() - 0.5) * 5;
+  const waypoints = Array.from({ length: 6 }, () => {
+    wx += (Math.random() - 0.5) * 4; wy += (Math.random() - 0.5) * 3;
+    wx = Math.max(-8, Math.min(8, wx)); wy = Math.max(-7, Math.min(7, wy));
+    return { x: +wx.toFixed(2), y: +wy.toFixed(2) };
+  });
   return {
     id, cell,
     size: 64 + Math.random() * 72,
     startX: B_X_MIN + colW * (col + 0.5) + jX,
     startY: B_Y_MIN + rowH * (row + 0.5) + jY,
-    waypoints: Array.from({ length: 4 }, () => ({ x: (Math.random() - 0.5) * 12, y: (Math.random() - 0.5) * 10 })),
-    dur: 14 + Math.random() * 10, delay: -Math.random() * 6,
+    waypoints,
+    dur: 18 + Math.random() * 12, delay: -Math.random() * 8,
     wobbleDur: 5 + Math.random() * 4, wobbleDelay: -Math.random() * 6,
     wobbleVariant: Math.floor(Math.random() * 3),
     color: BUBBLE_COLORS[Math.floor(Math.random() * BUBBLE_COLORS.length)],
@@ -1873,10 +1888,10 @@ function BubbleEl({ b, onPop }: { b: BubbleDef; onPop: () => void }) {
     const styleId = `kf-bubble-${b.id}`;
     if (document.getElementById(styleId)) return;
     const N = b.waypoints.length;
-    let kf = `@keyframes ancla-bubble-drift-${b.id} {\n  0% { transform: translate(0vw,0vh); }\n`;
+    let kf = `@keyframes ancla-bubble-drift-${b.id} {\n  0% { transform: translate(0vw,0vh); animation-timing-function: cubic-bezier(.5,0,.5,1); }\n`;
     b.waypoints.forEach((w, idx) => {
       const pct = ((idx + 1) / (N + 1)) * 100;
-      kf += `  ${pct.toFixed(1)}% { transform: translate(${w.x.toFixed(2)}vw,${w.y.toFixed(2)}vh); }\n`;
+      kf += `  ${pct.toFixed(1)}% { transform: translate(${w.x.toFixed(2)}vw,${w.y.toFixed(2)}vh); animation-timing-function: cubic-bezier(.5,0,.5,1); }\n`;
     });
     kf += `  100% { transform: translate(0vw,0vh); }\n}`;
     const tag = document.createElement('style');
@@ -1888,32 +1903,37 @@ function BubbleEl({ b, onPop }: { b: BubbleDef; onPop: () => void }) {
   if (b.popping) return <PoppedBurst b={b} />;
 
   return (
-    <div
-      style={{
-        position: 'absolute', left: `${b.startX}%`, top: `${b.startY}%`,
-        width: b.size, height: b.size, cursor: 'pointer', willChange: 'transform',
-        animation: `ancla-bubble-drift-${b.id} ${b.dur}s ease-in-out infinite`,
-        animationDelay: `${b.delay}s`,
-      }}
-      onClick={onPop} onTouchStart={onPop}
-    >
-      <div style={{
-        width: '100%', height: '100%', borderRadius: '50%',
-        background: `radial-gradient(circle at 32% 28%, ${b.color}aa, ${b.color}cc 55%, ${b.color}bb 100%)`,
-        boxShadow: `inset -6px -8px 18px ${b.color}66, inset 6px 6px 16px rgba(255,255,255,0.25), 0 4px 18px ${b.color}33`,
-        border: '1px solid rgba(255,255,255,0.25)', opacity: 0.95,
-        animation: `ancla-bubble-wobble-${b.wobbleVariant} ${b.wobbleDur}s ease-in-out infinite`,
-        animationDelay: `${b.wobbleDelay}s`,
-        position: 'relative', overflow: 'hidden',
-      }}>
+    <div style={{
+      position: 'absolute', left: `${b.startX}%`, top: `${b.startY}%`,
+      width: b.size, height: b.size,
+      animation: 'ancla-bubble-appear 0.55s cubic-bezier(.34,1.56,.64,1) both',
+    }}>
+      <div
+        style={{
+          width: '100%', height: '100%', cursor: 'pointer', willChange: 'transform',
+          animation: `ancla-bubble-drift-${b.id} ${b.dur}s linear infinite`,
+          animationDelay: `${b.delay}s`,
+        }}
+        onClick={onPop} onTouchStart={onPop}
+      >
         <div style={{
-          position: 'absolute', left: '24%', top: '20%', width: '26%', height: '18%',
-          borderRadius: '50%',
-          background: 'radial-gradient(ellipse, rgba(255,255,255,0.7), rgba(255,255,255,0) 70%)',
-          filter: 'blur(2px)',
-          animation: `ancla-bubble-shine ${b.wobbleDur * 1.4}s ease-in-out infinite`,
+          width: '100%', height: '100%', borderRadius: '50%',
+          background: `radial-gradient(circle at 32% 28%, ${b.color}aa, ${b.color}cc 55%, ${b.color}bb 100%)`,
+          boxShadow: `inset -6px -8px 18px ${b.color}66, inset 6px 6px 16px rgba(255,255,255,0.25), 0 4px 18px ${b.color}33`,
+          border: '1px solid rgba(255,255,255,0.25)', opacity: 0.95,
+          animation: `ancla-bubble-wobble-${b.wobbleVariant} ${b.wobbleDur}s ease-in-out infinite`,
           animationDelay: `${b.wobbleDelay}s`,
-        }} />
+          position: 'relative', overflow: 'hidden',
+        }}>
+          <div style={{
+            position: 'absolute', left: '24%', top: '20%', width: '26%', height: '18%',
+            borderRadius: '50%',
+            background: 'radial-gradient(ellipse, rgba(255,255,255,0.7), rgba(255,255,255,0) 70%)',
+            filter: 'blur(2px)',
+            animation: `ancla-bubble-shine ${b.wobbleDur * 1.4}s ease-in-out infinite`,
+            animationDelay: `${b.wobbleDelay}s`,
+          }} />
+        </div>
       </div>
     </div>
   );
@@ -1953,14 +1973,15 @@ function PoppedBurst({ b }: { b: BubbleDef }) {
 }
 
 function Phase9({ onDone }: { onDone: () => void }) {
-  const [bubbles, setBubbles] = useState<BubbleDef[]>([]);
+  const idRef = useRef(200);
+  const [bubbles, setBubbles] = useState<BubbleDef[]>(() => {
+    const arr: BubbleDef[] = [];
+    for (let i = 0; i < 12; i++) arr.push(makeBubbleDef('bi' + i, arr));
+    return arr;
+  });
   const [showExit, setShowExit] = useState(false);
-  const idRef = useRef(100);
 
   useEffect(() => {
-    const arr: BubbleDef[] = [];
-    for (let i = 0; i < 9; i++) arr.push(makeBubbleDef('b' + (idRef.current++) + i, arr));
-    setBubbles(arr);
     const t = setTimeout(() => setShowExit(true), 2000);
     return () => clearTimeout(t);
   }, []);
@@ -1973,11 +1994,16 @@ function Phase9({ onDone }: { onDone: () => void }) {
       setBubbles(prev => {
         const active = prev.filter(b => !b.popping);
         if (active.length >= 20) return prev;
-        return [...prev, makeBubbleDef('b' + (idRef.current++), prev)];
+        const batch = Math.max(1, Math.min(3, 7 - active.length));
+        let next = [...prev];
+        for (let i = 0; i < batch; i++) {
+          next = [...next, makeBubbleDef('b' + (idRef.current++), next.filter(b => !b.popping))];
+        }
+        return next;
       });
-      tt = setTimeout(tick, 700 + Math.random() * 900);
+      tt = setTimeout(tick, 400 + Math.random() * 600);
     };
-    tt = setTimeout(tick, 1200);
+    tt = setTimeout(tick, 500);
     return () => { alive = false; clearTimeout(tt); };
   }, []);
 
@@ -1991,6 +2017,19 @@ function Phase9({ onDone }: { onDone: () => void }) {
   const pop = (id: string) => {
     buzz(10);
     setBubbles(prev => prev.map(b => b.id === id ? { ...b, popping: true, poppedAt: Date.now() } : b));
+    // reposición inmediata si quedan pocas burbujas
+    setTimeout(() => {
+      setBubbles(curr => {
+        const active = curr.filter(b => !b.popping);
+        const toAdd = Math.min(Math.max(0, 9 - active.length), 4);
+        if (toAdd <= 0) return curr;
+        let next = [...curr];
+        for (let i = 0; i < toAdd; i++) {
+          next = [...next, makeBubbleDef('b' + (idRef.current++), next.filter(b => !b.popping))];
+        }
+        return next;
+      });
+    }, 250);
   };
 
   return (
@@ -2607,7 +2646,7 @@ function PhaseView({ fase, router, isMobile }: { fase: FaseNum; router: ReturnTy
         >
           {fase === 1  && <Phase1  onDone={handleDone} color={m.color} />}
           {fase === 2  && <Phase2  onDone={handleDone} color={m.color} />}
-          {fase === 3  && <Phase3  router={router} color={m.color} />}
+          {fase === 3  && <Phase3  onDone={handleDone} router={router} color={m.color} />}
           {fase === 4  && <Phase4  onDone={handleDone} color={m.color} />}
           {fase === 5  && <Phase5  onDone={handleDone} color={m.color} />}
           {fase === 6  && <Phase6  onDone={handleDone} color={m.color} />}
