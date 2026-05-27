@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Ancla · Métodos para calmarte</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,400&family=Inter:wght@300;400;450;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+<style>
+  :root {
+    --font-display: "Newsreader", "Georgia", serif;
+    --font-body:    "Inter", -apple-system, system-ui, sans-serif;
+    --font-mono:    "JetBrains Mono", ui-monospace, monospace;
+
+    --c-bg:    #F5F2EE;
+    --c-card:  #FBF9F5;
+    --c-text:  #2C2C2A;
+    --c-muted: #57544E;
+    --c-faint: #8B8780;
+    --c-body:  #6a6560;
+    --c-bdr:   rgba(44,44,42,0.07);
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; background: var(--c-bg); color: var(--c-text); font-family: var(--font-body); -webkit-font-smoothing: antialiased; }
+  body { min-height: 100vh; min-height: 100dvh; overflow-x: hidden; }
+
+  /* Headings stay in Newsreader regardless of override scopes */
+  h1, h2, h3 { font-family: var(--font-display); font-weight: 400; margin: 0; letter-spacing: -0.012em; }
+
+  /* Reset buttons */
+  button { font: inherit; color: inherit; border: 0; background: transparent; cursor: pointer; padding: 0; }
+
+  /* Hide native scrollbars on inner scrollers we control */
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { scrollbar-width: none; }
+
+  /* Inputs */
+  input[type="text"] {
+    width: 100%;
+    font: 400 17px/1.4 var(--font-body);
+    color: var(--c-text);
+    background: var(--c-card);
+    border: 1px solid var(--c-bdr);
+    border-radius: 14px;
+    padding: 14px 16px;
+    outline: none;
+    transition: border-color .2s ease, background .2s ease;
+  }
+  input[type="text"]:focus { border-color: rgba(44,44,42,0.32); background: #fff; }
+  input[type="text"]::placeholder { color: var(--c-faint); }
+
+  /* Soft focus ring for buttons (a11y) */
+  button:focus-visible { outline: 2px solid rgba(44,44,42,0.4); outline-offset: 2px; border-radius: 12px; }
+
+  @keyframes ancla-fade-up {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .ancla-fade-up { animation: ancla-fade-up .55s cubic-bezier(.4,0,.2,1) both; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: .001ms !important; transition-duration: .001ms !important; }
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<!-- ext-resource-dependency: react -->
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel" src="bloborb.jsx"></script>
+<script type="text/babel" src="methods.jsx"></script>
+<script type="text/babel" src="app.jsx"></script>
+</body>
+</html>
