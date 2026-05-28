@@ -1961,14 +1961,14 @@ function pickCell(active: BubbleDef[]) {
   return cands[Math.floor(Math.random() * cands.length)];
 }
 
-function makeBubbleDef(id: string, active: BubbleDef[] = []): BubbleDef {
+function makeBubbleDef(id: string, active: BubbleDef[] = [], sizeMin = 64, sizeRange = 72): BubbleDef {
   const cell = pickCell(active);
   const col = cell % B_COLS, row = Math.floor(cell / B_COLS);
   const colW = (B_X_MAX - B_X_MIN) / B_COLS, rowH = (B_Y_MAX - B_Y_MIN) / B_ROWS;
   const jX = (Math.random() - 0.5) * colW * 0.65, jY = (Math.random() - 0.5) * rowH * 0.65;
   return {
     id, cell,
-    size: 64 + Math.random() * 72,
+    size: sizeMin + Math.random() * sizeRange,
     startX: B_X_MIN + colW * (col + 0.5) + jX,
     startY: B_Y_MIN + rowH * (row + 0.5) + jY,
     waypoints: Array.from({ length: 4 }, () => ({ x: (Math.random() - 0.5) * 12, y: (Math.random() - 0.5) * 10 })),
@@ -2066,15 +2066,19 @@ function PoppedBurst({ b }: { b: BubbleDef }) {
 }
 
 function Phase9({ onDone }: { onDone: () => void }) {
+  const isMobile = useMediaQuery('(max-width: 480px)');
   const [started, setStarted] = useState(false);
   const [bubbles, setBubbles] = useState<BubbleDef[]>([]);
   const [showExit, setShowExit] = useState(false);
   const idRef = useRef(100);
+  const maxAliveRef = useRef(20);
+  useEffect(() => { maxAliveRef.current = isMobile ? 11 : 20; }, [isMobile]);
 
   useEffect(() => {
     if (!started) return;
+    const sMin = isMobile ? 36 : 64, sRng = isMobile ? 40 : 72;
     const arr: BubbleDef[] = [];
-    for (let i = 0; i < 9; i++) arr.push(makeBubbleDef('b' + (idRef.current++) + i, arr));
+    for (let i = 0; i < (isMobile ? 6 : 9); i++) arr.push(makeBubbleDef('b' + (idRef.current++) + i, arr, sMin, sRng));
     setBubbles(arr);
     const t = setTimeout(() => setShowExit(true), 2000);
     return () => clearTimeout(t);
@@ -2082,14 +2086,15 @@ function Phase9({ onDone }: { onDone: () => void }) {
 
   useEffect(() => {
     if (!started) return;
+    const sMin = isMobile ? 36 : 64, sRng = isMobile ? 40 : 72;
     let alive = true;
     let tt: ReturnType<typeof setTimeout>;
     const tick = () => {
       if (!alive) return;
       setBubbles(prev => {
         const active = prev.filter(b => !b.popping);
-        if (active.length >= 20) return prev;
-        return [...prev, makeBubbleDef('b' + (idRef.current++), prev)];
+        if (active.length >= maxAliveRef.current) return prev;
+        return [...prev, makeBubbleDef('b' + (idRef.current++), prev, sMin, sRng)];
       });
       tt = setTimeout(tick, 700 + Math.random() * 900);
     };
@@ -2125,22 +2130,29 @@ function Phase9({ onDone }: { onDone: () => void }) {
     <div style={{ position: 'fixed', inset: 0, top: 56, background: C.bg, zIndex: 4, overflow: 'hidden' }}>
       {bubbles.map(b => <BubbleEl key={b.id} b={b} onPop={() => pop(b.id)} />)}
       {showExit && (
-        <button
-          onClick={onDone}
-          style={{
-            position: 'absolute', bottom: 36, left: '50%', transform: 'translateX(-50%)',
-            padding: '13px 26px', borderRadius: 999,
-            background: 'rgba(245,242,238,0.88)', backdropFilter: 'blur(10px)',
-            border: '1px solid rgba(44,44,42,0.14)',
-            color: C.text, fontSize: 14, fontWeight: 500,
-            fontFamily: 'var(--font-body)', cursor: 'pointer',
-            boxShadow: '0 4px 24px rgba(44,44,42,0.08)',
-            animation: 'ancla-fade-up .6s cubic-bezier(.4,0,.2,1) both',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          Ya fue suficiente
-        </button>
+        <div style={{
+          position: 'absolute',
+          bottom: isMobile ? 'calc(env(safe-area-inset-bottom, 0px) + 24px)' : 36,
+          left: 0, right: 0,
+          display: 'flex', justifyContent: 'center',
+          animation: 'ancla-fade-up .6s cubic-bezier(.4,0,.2,1) both',
+          pointerEvents: 'none',
+        }}>
+          <button
+            onClick={onDone}
+            style={{
+              padding: isMobile ? '15px 32px' : '13px 26px', borderRadius: 999,
+              background: 'rgba(245,242,238,0.88)', backdropFilter: 'blur(10px)',
+              border: '1px solid rgba(44,44,42,0.14)',
+              color: C.text, fontSize: isMobile ? 15 : 14, fontWeight: 500,
+              fontFamily: 'var(--font-body)', cursor: 'pointer',
+              boxShadow: '0 4px 24px rgba(44,44,42,0.08)',
+              whiteSpace: 'nowrap', pointerEvents: 'auto',
+            }}
+          >
+            Ya fue suficiente
+          </button>
+        </div>
       )}
     </div>
   );
