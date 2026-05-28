@@ -314,12 +314,14 @@ export default function AnclaPage() {
   return (
     <>
       <style>{`
-        @media print {
-          #ancla-app { display: none !important; }
-          #ancla-print { display: block !important; padding: 28px; font-family: serif; }
-        }
-        #ancla-print { display: none; }
         @keyframes spin { to { transform: rotate(360deg); } }
+        #ancla-print { display: none; }
+        @media print {
+          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+          @page { size: A4; margin: 0; }
+          #ancla-app { display: none !important; }
+          #ancla-print { display: block !important; }
+        }
       `}</style>
 
       <div id="ancla-app" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--color-background)' }}>
@@ -718,16 +720,115 @@ export default function AnclaPage() {
       </div>
 
       {/* Print-only document */}
-      <div id="ancla-print">
-        <h1>ANCLA — {ruta === 'legal' ? 'Reporte con acompañamiento' : 'Reporte anónimo'} #{folio}</h1>
-        <p>Fecha: {today}</p>
-        <p>Hash de integridad: sha256:{hashHex}</p>
-        <p>Plataforma: {plataforma || 'No especificada'}</p>
-        <p>Tipo de reporte: {ruta === 'legal' ? 'Seguimiento legal' : 'Reporte privado'}</p>
-        {allPatterns.length > 0 && (
-          <><p>Patrones detectados:</p><ul>{allPatterns.map((p) => <li key={p}>{labelFor(p)}</li>)}</ul></>
-        )}
-        <p>ancla.vercel.app</p>
+      <div id="ancla-print" style={{ fontFamily: 'Georgia, serif', background: 'white', minHeight: '100vh' }}>
+
+        {/* Top accent bar */}
+        <div style={{ height: 6, background: 'linear-gradient(90deg, #bf6b4a 0%, #d4956b 60%, #6b7f5e 100%)' }} />
+
+        <div style={{ padding: '36px 44px 40px' }}>
+
+          {/* Header */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 32 }}>
+            <div>
+              <div style={{ fontFamily: 'system-ui, sans-serif', fontWeight: 800, fontSize: '1.6rem', color: '#bf6b4a', letterSpacing: '-0.02em', lineHeight: 1 }}>
+                ancla
+              </div>
+              <div style={{ fontFamily: 'system-ui, sans-serif', fontSize: '0.72rem', color: '#9c8e87', letterSpacing: '0.08em', textTransform: 'uppercase', marginTop: 3 }}>
+                Registro de incidente
+              </div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontFamily: 'monospace', fontSize: '1.1rem', fontWeight: 700, color: '#1a1614', letterSpacing: '0.04em' }}>
+                {folio}
+              </div>
+              <div style={{ fontFamily: 'system-ui, sans-serif', fontSize: '0.72rem', color: '#9c8e87', marginTop: 2 }}>
+                {today}
+              </div>
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div style={{ height: 1, background: '#e8e1da', marginBottom: 28 }} />
+
+          {/* Type badge */}
+          <div style={{ marginBottom: 28 }}>
+            <div style={{
+              display: 'inline-block',
+              padding: '5px 14px',
+              borderRadius: 999,
+              background: ruta === 'legal' ? '#eef3eb' : '#faf3ef',
+              border: `1px solid ${ruta === 'legal' ? '#c8ddc0' : '#e8c9b8'}`,
+              fontFamily: 'system-ui, sans-serif',
+              fontSize: '0.76rem',
+              fontWeight: 600,
+              color: ruta === 'legal' ? '#4a6e41' : '#8b4c2f',
+            }}>
+              {ruta === 'legal' ? '⚖ Reporte con seguimiento legal' : '🔒 Reporte privado / anónimo'}
+            </div>
+          </div>
+
+          {/* Info grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 32px', marginBottom: 28 }}>
+            {[
+              { label: 'Plataforma', value: plataforma || 'No especificada' },
+              { label: 'Tipo de incidente', value: ruta === 'legal' ? 'Con acompañamiento familiar' : 'Reporte anónimo' },
+              ...(municipio ? [{ label: 'Municipio', value: municipio }] : []),
+              ...(identificador ? [{ label: 'Identificador reportado', value: identificador }] : []),
+            ].map(({ label, value }) => (
+              <div key={label} style={{ borderBottom: '1px solid #f0ebe5', paddingBottom: 10 }}>
+                <div style={{ fontFamily: 'system-ui, sans-serif', fontSize: '0.65rem', fontWeight: 600, color: '#9c8e87', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>
+                  {label}
+                </div>
+                <div style={{ fontFamily: 'system-ui, sans-serif', fontSize: '0.88rem', color: '#1a1614', fontWeight: 500 }}>
+                  {value}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Patterns */}
+          {allPatterns.length > 0 && (
+            <div style={{ marginBottom: 28 }}>
+              <div style={{ fontFamily: 'system-ui, sans-serif', fontSize: '0.65rem', fontWeight: 600, color: '#9c8e87', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
+                Patrones detectados
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+                {allPatterns.map((p) => (
+                  <span key={p} style={{ fontFamily: 'system-ui, sans-serif', fontSize: '0.78rem', padding: '4px 12px', borderRadius: 999, background: '#faf3ef', border: '1px solid #e8c9b8', color: '#8b4c2f', fontWeight: 500 }}>
+                    {labelFor(p)}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Hash integrity */}
+          <div style={{ background: '#f8f6f3', border: '1px solid #e8e1da', borderRadius: 10, padding: '16px 20px', marginBottom: 32 }}>
+            <div style={{ fontFamily: 'system-ui, sans-serif', fontSize: '0.65rem', fontWeight: 600, color: '#9c8e87', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
+              Hash de integridad SHA-256
+            </div>
+            <div style={{ fontFamily: 'monospace', fontSize: '0.72rem', color: '#4a3f39', wordBreak: 'break-all', lineHeight: 1.6 }}>
+              {hashHex}
+            </div>
+            <div style={{ fontFamily: 'system-ui, sans-serif', fontSize: '0.65rem', color: '#9c8e87', marginTop: 6 }}>
+              Este código verifica que el registro no fue alterado después de su generación.
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div style={{ height: 1, background: '#e8e1da', marginBottom: 20 }} />
+
+          {/* Footer */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontFamily: 'system-ui, sans-serif', fontSize: '0.68rem', color: '#b0a59e', maxWidth: 380, lineHeight: 1.5 }}>
+              Este documento es un registro privado generado por ANCLA. No constituye una denuncia formal. Guárdalo en un lugar seguro.
+            </div>
+            <div style={{ fontFamily: 'monospace', fontSize: '0.68rem', color: '#c8b8b0', letterSpacing: '0.04em' }}>
+              ancla · {folio}
+            </div>
+          </div>
+
+        </div>
       </div>
     </>
   )
