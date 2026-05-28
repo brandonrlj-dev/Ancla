@@ -293,6 +293,106 @@ export async function descartarVinculacionPerfil(
   )
 }
 
+// ── Alertas de inteligencia ───────────────────────────────────────────────────
+
+export interface SurgeData {
+  plataforma: string
+  estasSemana: number
+  semanaAnterior: number
+  pctCambio: number
+}
+
+export interface ZonaConcentracion {
+  zona: string
+  count: number
+  plataformas: string[]
+}
+
+export interface PerfilSignalData {
+  id: string
+  nivelRiesgo: string
+  plataformas: string[]
+  zonasActivas: string[]
+  numReportes: number
+  createdAt: string
+}
+
+export interface AlertasInteligenciaData {
+  surges: SurgeData[]
+  zonas: ZonaConcentracion[]
+  nuevosAltoRiesgo: PerfilSignalData[]
+  reincidentes: PerfilSignalData[]
+}
+
+export async function getAlertasInteligencia(): Promise<AlertasInteligenciaData> {
+  const supabase = await createClient()
+
+  const ahora     = new Date()
+  const hace7d    = new Date(ahora.getTime() - 7  * 864e5).toISOString()
+  const hace14d   = new Date(ahora.getTime() - 14 * 864e5).toISOString()
+
+  const [reportesRes, alertasRes, perfilesRes] = await Promise.all([
+    supabase.from('reportes_directos').select('plataforma, created_at').gte('created_at', hace14d),
+    supabase.from('alertas').select('zona_geografica, plataformas, created_at').gte('created_at', hace7d).not('zona_geografica', 'is', null),
+    supabase.from('perfiles_agresores').select('id, nivel_riesgo, plataformas, zonas_activas, num_reportes, created_at'),
+  ])
+
+  // Platform surges: this week vs previous week
+  const platEsta: Record<string, number>     = {}
+  const platAnterior: Record<string, number> = {}
+  const hace7dDate = new Date(hace7d)
+  for (const r of reportesRes.data ?? []) {
+    const plat = (r.plataforma as string) ?? 'Otra'
+    if (new Date(r.created_at as string) >= hace7dDate) platEsta[plat] = (platEsta[plat] ?? 0) + 1
+    else platAnterior[plat] = (platAnterior[plat] ?? 0) + 1
+  }
+  const surges: SurgeData[] = Object.entries(platEsta)
+    .map(([plataforma, estasSemana]) => {
+      const semanaAnterior = platAnterior[plataforma] ?? 0
+      const pctCambio = semanaAnterior === 0 ? 100 : Math.round(((estasSemana - semanaAnterior) / semanaAnterior) * 100)
+      return { plataforma, estasSemana, semanaAnterior, pctCambio }
+    })
+    .filter((s) => s.estasSemana >= 2)
+    .sort((a, b) => b.estasSemana - a.estasSemana)
+    .slice(0, 5)
+
+  // Zone concentrations: alertas in last 7 days grouped by zone
+  const zonaCounts: Record<string, { count: number; plats: Set<string> }> = {}
+  for (const a of alertasRes.data ?? []) {
+    const zona = a.zona_geografica as string
+    if (!zonaCounts[zona]) zonaCounts[zona] = { count: 0, plats: new Set() }
+    zonaCounts[zona].count++
+    for (const p of (a.plataformas as string[])) zonaCounts[zona].plats.add(p)
+  }
+  const zonas: ZonaConcentracion[] = Object.entries(zonaCounts)
+    .map(([zona, { count, plats }]) => ({ zona, count, plataformas: Array.from(plats) }))
+    .filter((z) => z.count >= 1)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 6)
+
+  // Profile signals
+  const perfiles: PerfilSignalData[] = (perfilesRes.data ?? []).map((r) => ({
+    id:           r.id as string,
+    nivelRiesgo:  (r.nivel_riesgo as string)     ?? 'medio',
+    plataformas:  (r.plataformas as string[])    ?? [],
+    zonasActivas: (r.zonas_activas as string[])  ?? [],
+    numReportes:  (r.num_reportes as number)     ?? 0,
+    createdAt:    r.created_at as string,
+  }))
+
+  const nuevosAltoRiesgo = perfiles
+    .filter((p) => ['alto', 'critico'].includes(p.nivelRiesgo) && new Date(p.createdAt) >= hace7dDate)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 5)
+
+  const reincidentes = perfiles
+    .filter((p) => p.numReportes >= 3)
+    .sort((a, b) => b.numReportes - a.numReportes)
+    .slice(0, 5)
+
+  return { surges, zonas, nuevosAltoRiesgo, reincidentes }
+}
+
 export async function getEstadisticas(): Promise<EstadisticasData> {
   const supabase = await createClient()
 

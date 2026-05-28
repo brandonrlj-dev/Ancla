@@ -34,7 +34,9 @@ export const metadata: Metadata = {
     title: 'ANCLA',
   },
   icons: {
-    apple: '/icons/apple-touch-icon.png',
+    apple: [
+      { url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
+    ],
   },
 };
 
