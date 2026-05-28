@@ -118,9 +118,7 @@ export default function PCDashboard() {
           <div style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '0.95rem', color: 'var(--color-text-primary)', marginBottom: 16 }}>
             Distribución geográfica
           </div>
-          <div style={{ display: 'flex', justifyContent: 'center' }}>
-            <NayaritMap size={240} zonaStats={stats?.zonaStats ?? []} />
-          </div>
+          <NayaritMap zonaStats={stats?.zonaStats ?? []} />
         </motion.div>
 
         {/* Mixed feed */}
