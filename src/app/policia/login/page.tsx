@@ -39,7 +39,9 @@ export default function PCLoginPage() {
       return;
     }
 
-    router.push('/policia');
+    // Use window.location.replace instead of router.push to force a full reload.
+    // This ensures cookies are fully set and sent to the server, preventing Next.js cache and race condition redirects.
+    window.location.replace('/policia');
   }
 
   return (

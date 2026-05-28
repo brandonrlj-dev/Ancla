@@ -527,7 +527,15 @@ export default function AnclaPage() {
                         Opcional. Ayuda a identificar patrones geográficos.
                       </p>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                        {['Tepic', 'Bahía de Banderas', 'Compostela', 'Xalisco', 'Santiago Ixcuintla', 'Ruiz', 'Otro municipio'].map((m) => (
+                        {[
+                          'Tepic, Nayarit', 'Bahía de Banderas, Nayarit', 'Xalisco, Nayarit',
+                          'Compostela, Nayarit', 'Santiago Ixcuintla, Nayarit', 'San Blas, Nayarit',
+                          'Tecuala, Nayarit', 'Acaponeta, Nayarit', 'Ruiz, Nayarit',
+                          'Rosamorada, Nayarit', 'Tuxpan, Nayarit', 'Huajicori, Nayarit',
+                          'Ixtlán del Río, Nayarit', 'Ahuacatlán, Nayarit', 'Jala, Nayarit',
+                          'Amatlán de Cañas, Nayarit', 'San Pedro Lagunillas, Nayarit',
+                          'Santa María del Oro, Nayarit', 'La Yesca, Nayarit', 'Del Nayar, Nayarit',
+                        ].map((m) => (
                           <button
                             key={m}
                             type="button"

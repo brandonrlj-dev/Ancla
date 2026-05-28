@@ -287,8 +287,8 @@ export async function getPerfilDetalle(id: string): Promise<{
 
   return {
     perfil:        perfilRes.data ? mapPerfilRow(perfilRes.data as Record<string, unknown>) : null,
-    similares:     (similaresRes.data ?? []).map((r) => mapPerfilSimilarRow(r as Record<string, unknown>)),
-    vinculaciones: (vinculacionesRes.data ?? []).map((r) => mapVinculacionPerfilRow(r as Record<string, unknown>)),
+    similares:     (similaresRes.data ?? []).map((r: any) => mapPerfilSimilarRow(r as Record<string, unknown>)),
+    vinculaciones: (vinculacionesRes.data ?? []).map((r: any) => mapVinculacionPerfilRow(r as Record<string, unknown>)),
   }
 }
 
