@@ -109,6 +109,18 @@ function ReporteCard({ rep, onUpdateEstado }: {
               </span>
             </div>
 
+            {/* Aggressor identifiers */}
+            {rep.identificadoresAgresor.length > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
+                <Smartphone size={11} color="var(--color-text-tertiary)" />
+                {rep.identificadoresAgresor.map((id) => (
+                  <span key={id} style={{ fontFamily: 'var(--font-mono)', fontSize: '0.73rem', background: '#f0f4f8', border: '1px solid #d1dce8', borderRadius: 6, padding: '2px 8px', color: '#3d5e81', fontWeight: 600 }}>
+                    {id}
+                  </span>
+                ))}
+              </div>
+            )}
+
             {/* Summary */}
             <div style={{ padding: '12px 16px', borderRadius: 12, background: 'var(--color-sage-50)', border: '1px solid var(--color-sage-100)', fontFamily: 'var(--font-body)', fontSize: '0.88rem', color: 'var(--color-text-primary)', lineHeight: 1.55 }}>
               {deriveSummary(rep)}

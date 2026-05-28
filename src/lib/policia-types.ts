@@ -7,6 +7,7 @@ export interface ReporteRow {
   tipoReporte: 'privado' | 'legal'
   plataforma: string
   patrones: string[]
+  identificadoresAgresor: string[]
   tieneContacto: boolean
   adultoAlTanto: boolean | null
   estado: string
@@ -84,6 +85,7 @@ export interface PerfilAgresorRow {
   plataformas: string[]
   tacticas: string[]
   zonasActivas: string[]
+  identificadores: string[]
   nivelRiesgo: string
   numReportes: number
   createdAt: string
@@ -97,6 +99,7 @@ export interface PerfilSimilarRow {
   plataformas: string[]
   tacticas: string[]
   zonasActivas: string[]
+  identificadores: string[]
 }
 
 export interface VinculacionPerfilRow {
@@ -111,25 +114,27 @@ export interface VinculacionPerfilRow {
 
 export function mapPerfilRow(r: Record<string, unknown>): PerfilAgresorRow {
   return {
-    id:           r.id as string,
-    plataformas:  (r.plataformas as string[])   ?? [],
-    tacticas:     (r.tacticas as string[])       ?? [],
-    zonasActivas: (r.zonas_activas as string[])  ?? [],
-    nivelRiesgo:  (r.nivel_riesgo as string)     ?? 'medio',
-    numReportes:  (r.num_reportes as number)     ?? 0,
-    createdAt:    r.created_at as string,
+    id:              r.id as string,
+    plataformas:     (r.plataformas as string[])      ?? [],
+    tacticas:        (r.tacticas as string[])          ?? [],
+    zonasActivas:    (r.zonas_activas as string[])     ?? [],
+    identificadores: (r.identificadores as string[])  ?? [],
+    nivelRiesgo:     (r.nivel_riesgo as string)        ?? 'medio',
+    numReportes:     (r.num_reportes as number)        ?? 0,
+    createdAt:       r.created_at as string,
   }
 }
 
 export function mapPerfilSimilarRow(r: Record<string, unknown>): PerfilSimilarRow {
   return {
-    perfilId:     r.perfil_id as string,
-    similitud:    r.similitud as number,
-    numReportes:  (r.num_reportes as number)     ?? 0,
-    nivelRiesgo:  (r.nivel_riesgo as string)     ?? 'medio',
-    plataformas:  (r.plataformas as string[])    ?? [],
-    tacticas:     (r.tacticas as string[])       ?? [],
-    zonasActivas: (r.zonas_activas as string[])  ?? [],
+    perfilId:        r.perfil_id as string,
+    similitud:       r.similitud as number,
+    numReportes:     (r.num_reportes as number)        ?? 0,
+    nivelRiesgo:     (r.nivel_riesgo as string)        ?? 'medio',
+    plataformas:     (r.plataformas as string[])       ?? [],
+    tacticas:        (r.tacticas as string[])          ?? [],
+    zonasActivas:    (r.zonas_activas as string[])     ?? [],
+    identificadores: (r.identificadores as string[])  ?? [],
   }
 }
 
@@ -146,16 +151,18 @@ export function mapVinculacionPerfilRow(r: Record<string, unknown>): Vinculacion
 }
 
 export function mapReporteRow(r: Record<string, unknown>): ReporteRow {
+  const perfilAgresor = r.perfil_agresor as Record<string, unknown> | null
   return {
-    id:           r.id as string,
-    folio:        r.folio as string,
-    tipo:         (r.tipo as string)                          ?? 'acoso',
-    tipoReporte:  (r.tipo_reporte as 'privado' | 'legal')    ?? 'privado',
-    plataforma:   (r.plataforma as string)                   ?? '',
-    patrones:     (r.patrones as string[])                   ?? [],
-    tieneContacto: !!(r.contacto_cifrado || r.contacto_familiar_cifrado),
-    adultoAlTanto: (r.adulto_al_tanto as boolean | null)     ?? null,
-    estado:       (r.estado as string)                       ?? 'nuevo',
-    createdAt:    r.created_at as string,
+    id:                    r.id as string,
+    folio:                 r.folio as string,
+    tipo:                  (r.tipo as string)                          ?? 'acoso',
+    tipoReporte:           (r.tipo_reporte as 'privado' | 'legal')    ?? 'privado',
+    plataforma:            (r.plataforma as string)                   ?? '',
+    patrones:              (r.patrones as string[])                   ?? [],
+    identificadoresAgresor: (perfilAgresor?.identificadores as string[]) ?? [],
+    tieneContacto:         !!(r.contacto_cifrado || r.contacto_familiar_cifrado),
+    adultoAlTanto:         (r.adulto_al_tanto as boolean | null)     ?? null,
+    estado:                (r.estado as string)                       ?? 'nuevo',
+    createdAt:             r.created_at as string,
   }
 }

@@ -6,7 +6,7 @@ import { headers } from 'next/headers'
 import { mapReporteRow, mapAlertaRow, mapVinculacionRow, mapPerfilRow, mapPerfilSimilarRow, mapVinculacionPerfilRow, type ReporteRow, type DashboardData, type AlertaRow, type EstadisticasData, type VinculacionRow, type ContactoDecifrado, type PerfilAgresorRow, type PerfilSimilarRow, type VinculacionPerfilRow } from '@/lib/policia-types'
 
 const REPORTE_SELECT =
-  'id, folio, tipo, tipo_reporte, plataforma, patrones, contacto_cifrado, contacto_familiar_cifrado, adulto_al_tanto, estado, created_at'
+  'id, folio, tipo, tipo_reporte, plataforma, patrones, perfil_agresor, contacto_cifrado, contacto_familiar_cifrado, adulto_al_tanto, estado, created_at'
 
 export async function getDashboardData(): Promise<DashboardData> {
   const supabase = await createClient()
@@ -260,7 +260,7 @@ export async function descartarVinculacion(vinculacionId: string): Promise<void>
 
 // ── Perfiles de agresores ─────────────────────────────────────────────────────
 
-const PERFIL_SELECT = 'id, plataformas, tacticas, zonas_activas, nivel_riesgo, num_reportes, created_at'
+const PERFIL_SELECT = 'id, plataformas, tacticas, zonas_activas, identificadores, nivel_riesgo, num_reportes, created_at'
 
 export async function getPerfiles(): Promise<PerfilAgresorRow[]> {
   const supabase = await createClient()
@@ -270,6 +270,39 @@ export async function getPerfiles(): Promise<PerfilAgresorRow[]> {
     .order('num_reportes', { ascending: false })
     .limit(100)
   return (data ?? []).map((r) => mapPerfilRow(r as Record<string, unknown>))
+}
+
+export async function getReportesDePerfl(perfilId: string): Promise<ReporteRow[]> {
+  const supabase = await createClient()
+
+  // Alertas linked to this profile
+  const { data: alertasData } = await supabase
+    .from('alertas')
+    .select('id')
+    .eq('perfil_id', perfilId)
+
+  const alertaIds = (alertasData ?? []).map((a) => a.id as string)
+  if (alertaIds.length === 0) return []
+
+  // Reports via direct alerta_id and via vinculaciones
+  const [directRes, vinRes] = await Promise.all([
+    supabase.from('reportes_directos').select(REPORTE_SELECT).in('alerta_id', alertaIds),
+    supabase.from('vinculaciones').select('reporte_id').in('alerta_id', alertaIds),
+  ])
+
+  const directSet = new Set((directRes.data ?? []).map((r) => (r as Record<string, unknown>).id as string))
+  const extraIds  = (vinRes.data ?? [])
+    .map((v) => (v as Record<string, unknown>).reporte_id as string)
+    .filter((id) => !directSet.has(id))
+
+  const extraData = extraIds.length > 0
+    ? ((await supabase.from('reportes_directos').select(REPORTE_SELECT).in('id', extraIds)).data ?? [])
+    : []
+
+  return [...(directRes.data ?? []), ...extraData]
+    .sort((a, b) => new Date((b as Record<string, unknown>).created_at as string).getTime()
+                  - new Date((a as Record<string, unknown>).created_at as string).getTime())
+    .map((r) => mapReporteRow(r as Record<string, unknown>))
 }
 
 export async function getPerfilDetalle(id: string): Promise<{

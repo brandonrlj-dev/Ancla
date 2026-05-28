@@ -33,12 +33,30 @@ function buildAgressorText(plataforma: string, patterns: string[], identificador
   return parts.join('. ')
 }
 
-async function getEmbedding(text: string): Promise<string> {
-  const key   = process.env.GOOGLE_GENERATIVE_AI_API_KEY ?? process.env.GEMINI_API_KEY
-  const model = process.env.GEMINI_EMBEDDING_MODEL ?? 'text-embedding-004'
-  if (!key) throw new Error('Gemini API key not configured')
+let _cachedEmbedModel: string | null = null
+
+async function resolveEmbedModel(key: string): Promise<string> {
+  if (process.env.GEMINI_EMBEDDING_MODEL) return process.env.GEMINI_EMBEDDING_MODEL
+  if (_cachedEmbedModel) return _cachedEmbedModel
+
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:embedContent?key=${key}`,
+    `https://generativelanguage.googleapis.com/v1beta/models?key=${key}`,
+  )
+  if (!res.ok) throw new Error(`Gemini ListModels ${res.status}`)
+  const json = await res.json() as { models?: { name: string; supportedGenerationMethods?: string[] }[] }
+  const model = (json.models ?? []).find((m) => m.supportedGenerationMethods?.includes('embedContent'))
+  if (!model) throw new Error('No Gemini embedding model available for this API key')
+  console.log('[getEmbedding] using model:', model.name)
+  _cachedEmbedModel = model.name
+  return model.name
+}
+
+async function getEmbedding(text: string): Promise<string> {
+  const key = process.env.GOOGLE_GENERATIVE_AI_API_KEY ?? process.env.GEMINI_API_KEY
+  if (!key) throw new Error('Gemini API key not configured')
+  const model = await resolveEmbedModel(key)
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/${model}:embedContent?key=${key}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -69,126 +87,7 @@ function deriveRiesgo(patterns: string[]): string {
 
 type Supabase = ReturnType<typeof createServiceClient>
 
-interface MatchRow {
-  perfil_id: string
-  similitud: number
-  num_reportes: number
-  nivel_riesgo: string
-}
-
-// Match found: insert vinculación as a suggestion without touching num_victimas.
-// If there's no open alerta for the perfil, create a new one tied to the same profile.
-// Score >= 0.95: escalate alerta urgency so the police notices immediately.
-// Also accumulates municipio in the aggressor profile's zonas_activas.
-async function handleMatch(
-  best: MatchRow,
-  reporteId: string,
-  plataforma: string,
-  patterns: string[],
-  municipio: string | undefined,
-  supabase: Supabase,
-): Promise<void> {
-  const { data: alerta } = await supabase
-    .from('alertas')
-    .select('id, nivel_urgencia')
-    .eq('perfil_id', best.perfil_id)
-    .in('estado', ['nueva', 'en_investigacion'])
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-
-  let alertaId: string
-
-  if (alerta) {
-    alertaId = alerta.id as string
-
-    // High confidence: escalate urgency — police must review this immediately
-    if (best.similitud >= 0.95 && alerta.nivel_urgencia !== 'critica') {
-      await supabase
-        .from('alertas')
-        .update({ nivel_urgencia: 'critica', updated_at: new Date().toISOString() })
-        .eq('id', alertaId)
-    }
-  } else {
-    // Matched perfil has no open case — open a new one for the same aggressor
-    const { data: newAlerta, error } = await supabase
-      .from('alertas')
-      .insert({
-        nivel_urgencia:  deriveUrgency(patterns),
-        num_victimas:    1,
-        perfil_id:       best.perfil_id,
-        plataformas:     [plataforma],
-        zona_geografica: municipio ?? null,
-        estado:          'nueva',
-      })
-      .select('id')
-      .single()
-
-    if (error || !newAlerta) return
-    alertaId = newAlerta.id as string
-  }
-
-  // Add municipio to the aggressor's known zones (no duplicates via array_append logic)
-  if (municipio) {
-    await supabase.rpc('agregar_zona_agresor', {
-      p_perfil_id: best.perfil_id,
-      p_zona:      municipio,
-    })
-  }
-
-  // Insert as suggestion — police must confirm before num_victimas is updated
-  await supabase.from('vinculaciones').insert({
-    alerta_id:       alertaId,
-    reporte_id:      reporteId,
-    similitud_score: best.similitud,
-  })
-  // unique constraint (alerta_id, reporte_id) handles concurrent duplicates silently
-}
-
-// No match: create a new aggressor profile and a confirmed alerta linked to this report.
-async function createNewProfile(
-  embeddingStr: string,
-  reporteId: string,
-  plataforma: string,
-  patterns: string[],
-  municipio: string | undefined,
-  supabase: Supabase,
-): Promise<void> {
-  const { data: perfil, error: perfilErr } = await supabase
-    .from('perfiles_agresores')
-    .insert({
-      patron_vector:  embeddingStr,
-      plataformas:    [plataforma],
-      tacticas:       patterns,
-      nivel_riesgo:   deriveRiesgo(patterns),
-      zonas_activas:  municipio ? [municipio] : [],
-    })
-    .select('id')
-    .single()
-
-  if (perfilErr || !perfil) return
-
-  const { data: alerta, error: alertaErr } = await supabase
-    .from('alertas')
-    .insert({
-      nivel_urgencia:  deriveUrgency(patterns),
-      num_victimas:    1,
-      perfil_id:       perfil.id,
-      plataformas:     [plataforma],
-      zona_geografica: municipio ?? null,
-      estado:          'nueva',
-    })
-    .select('id')
-    .single()
-
-  if (alertaErr || !alerta) return
-
-  // Link the report to its confirmed alerta (new profile = not a suggestion)
-  await supabase
-    .from('reportes_directos')
-    .update({ alerta_id: alerta.id, updated_at: new Date().toISOString() })
-    .eq('id', reporteId)
-}
+interface SimilarRow { perfil_id: string; similitud: number }
 
 async function analyzeAndLink(
   reporteId: string,
@@ -200,38 +99,80 @@ async function analyzeAndLink(
 ): Promise<void> {
   if (patterns.length === 0) return
 
-  const urgency = deriveUrgency(patterns)
-
   try {
     const embeddingStr = await getEmbedding(buildAgressorText(plataforma, patterns, identificador))
 
-    // Vector search via HNSW index; already filtered by platform threshold from config_plataformas
-    const { data: matches, error: rpcErr } = await supabase.rpc('buscar_perfil_similar', {
+    // 1. Always create a new profile for this report
+    const { data: perfil, error: perfilErr } = await supabase
+      .from('perfiles_agresores')
+      .insert({
+        patron_vector:   embeddingStr,
+        plataformas:     [plataforma],
+        tacticas:        patterns,
+        nivel_riesgo:    deriveRiesgo(patterns),
+        zonas_activas:   municipio     ? [municipio]     : [],
+        identificadores: identificador ? [identificador] : [],
+      })
+      .select('id')
+      .single()
+
+    if (perfilErr || !perfil) {
+      console.error('[analyzeAndLink] perfil insert failed:', perfilErr)
+      return
+    }
+
+    // 2. Always create a new alert linked to the profile
+    const { data: alerta, error: alertaErr } = await supabase
+      .from('alertas')
+      .insert({
+        nivel_urgencia:  deriveUrgency(patterns),
+        num_victimas:    1,
+        perfil_id:       perfil.id,
+        plataformas:     [plataforma],
+        zona_geografica: municipio ?? null,
+        estado:          'nueva',
+      })
+      .select('id')
+      .single()
+
+    if (alertaErr || !alerta) {
+      console.error('[analyzeAndLink] alerta insert failed:', alertaErr)
+      return
+    }
+
+    // 3. Link report to alert
+    await supabase
+      .from('reportes_directos')
+      .update({ alerta_id: alerta.id, updated_at: new Date().toISOString() })
+      .eq('id', reporteId)
+
+    // 4. Find similar profiles using the platform threshold — police decides what to do
+    const { data: similares } = await supabase.rpc('buscar_perfil_similar', {
       p_embedding:  embeddingStr,
       p_plataforma: plataforma,
     })
 
-    if (rpcErr) throw rpcErr
-
-    if (matches && (matches as MatchRow[]).length > 0) {
-      await handleMatch((matches as MatchRow[])[0], reporteId, plataforma, patterns, municipio, supabase)
-    } else {
-      await createNewProfile(embeddingStr, reporteId, plataforma, patterns, municipio, supabase)
+    for (const sim of (similares ?? []) as SimilarRow[]) {
+      if (sim.perfil_id === perfil.id) continue  // skip self (just inserted)
+      const [a, b] = [perfil.id, sim.perfil_id].sort()
+      await supabase.from('vinculaciones_perfiles').upsert(
+        { perfil_a_id: a, perfil_b_id: b, similitud_score: sim.similitud, confirmada: false, descartada: false },
+        { onConflict: 'perfil_a_id,perfil_b_id' },
+      )
     }
-    return
-  } catch (err) {
-    // Embedding or vector search failed — fall back to a basic alerta with no profile link
-    console.error('[analyzeAndLink] embedding/vector error, falling back:', err)
-  }
 
-  await supabase.from('alertas').insert({
-    nivel_urgencia:  urgency,
-    num_victimas:    1,
-    perfil_id:       null,
-    plataformas:     [plataforma],
-    zona_geografica: municipio ?? null,
-    estado:          'nueva',
-  })
+  } catch (err) {
+    console.error('[analyzeAndLink] error, falling back to profileless alert:', err)
+    // Fallback: at least create an alert so police sees the report flagged
+    await supabase.from('alertas').insert({
+      nivel_urgencia:  deriveUrgency(patterns),
+      num_victimas:    1,
+      perfil_id:       null,
+      plataformas:     [plataforma],
+      zona_geografica: municipio ?? null,
+      estado:          'nueva',
+    })
+  }
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
