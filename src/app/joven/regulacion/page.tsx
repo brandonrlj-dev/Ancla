@@ -776,11 +776,31 @@ const G_STEPS = [
 ] as const;
 
 const NAV_PROMPTS: Record<string, string[]> = {
-  ves:       ['Mira a tu alrededor.', 'Recorre el espacio con la mirada.', 'Algo más lejos…', 'Algo cerca de ti…', 'Una última cosa que tus ojos encuentren.'],
-  escuchas:  ['Detente. Escucha.', 'Un sonido un poco más lejos.', 'Algo más sutil, casi de fondo.', 'Un último sonido.'],
-  tocas:     ['Toca lo que tengas cerca.', 'Otra textura, distinta.', 'Una última. Sin prisa.'],
-  hueles:    ['Inhala despacio.', 'Otro olor. Puede ser sutil.'],
-  saboreas:  ['Pasa la lengua por tus dientes.'],
+  ves:      [
+    'Mira a tu alrededor. ¿Qué es lo primero que ven tus ojos?',
+    'Algo cercano. Un objeto, un color, una forma — lo que sea.',
+    'Ahora algo un poco más lejos.',
+    'Algo pequeño que quizás no habías notado.',
+    'Una última cosa. Lo que te llame la atención.',
+  ],
+  escuchas: [
+    'Detente. Escucha. ¿Qué sonido percibes ahora mismo?',
+    'Un sonido que venga de un poco más lejos.',
+    'Algo más sutil, casi de fondo. Puede ser muy suave.',
+    'Un último sonido. Puede ser tu propia respiración.',
+  ],
+  tocas:    [
+    'Toca algo que tengas cerca. ¿Cómo se siente al tacto?',
+    'Busca una textura diferente — la ropa, una superficie, el suelo.',
+    'Una última. Algo que no hayas tocado todavía.',
+  ],
+  hueles:   [
+    'Inhala despacio. ¿Hay algún olor en el aire cerca de ti?',
+    'Inhala de nuevo. Puede ser muy sutil — el ambiente, la ropa, tus manos.',
+  ],
+  saboreas: [
+    'Pasa la lengua por tus dientes. ¿Qué sabor queda en tu boca ahora mismo?',
+  ],
 };
 
 const SENSE_FACE: Record<string, string> = {
@@ -798,7 +818,7 @@ function sensePhrase(sense: string) {
   }
 }
 
-function NaveganteFlow({ color, itemMs = 7000, onDone, onExit }: { color: string; itemMs?: number; onDone: () => void; onExit: () => void }) {
+function NaveganteFlow({ color, itemMs = 12000, onDone, onExit }: { color: string; itemMs?: number; onDone: () => void; onExit: () => void }) {
   const [step, setStep]       = useState(0);
   const [subStep, setSubStep] = useState(0);
   const [mode, setMode]       = useState<'item' | 'transition'>('item');
@@ -1159,9 +1179,9 @@ function Phase3({ router, color }: { router: ReturnType<typeof useRouter>; color
 ═══════════════════════════════════════════════════════ */
 
 const DIAF_SEQ: { label: string; ms: number; scale: number }[] = [
-  { label: 'Inhala despacio, lleva el aire al abdomen…', ms: 3500, scale: 1.18 },
+  { label: 'Inhala despacio, lleva el aire al abdomen…', ms: 5000, scale: 1.18 },
   { label: 'Sostén un momento…',                         ms: 1500, scale: 1.18 },
-  { label: 'Exhala lento…',                              ms: 4000, scale: 0.82 },
+  { label: 'Exhala lento…',                              ms: 5000, scale: 0.82 },
 ];
 
 function Phase4({ onDone, color }: { onDone: () => void; color: string }) {
@@ -2182,11 +2202,11 @@ function Phase12({ onDone, onGoToFase }: { onDone: () => void; onGoToFase: (f: s
 
 type TensionPhase = 'inhale' | 'tight' | 'release' | 'exhale';
 
-const TENSION_SEQ: { main: string; ms: number; phase: TensionPhase; vibe: number | number[] | null }[] = [
-  { main: 'Inhala profundo.',    ms: 3000, phase: 'inhale',  vibe: null        },
-  { main: 'Aprieta los puños.',  ms: 5000, phase: 'tight',   vibe: [60, 40, 60] },
-  { main: 'Afloja las manos.',   ms: 1200, phase: 'release', vibe: 25          },
-  { main: 'Exhala lento.',       ms: 5500, phase: 'exhale',  vibe: null        },
+const TENSION_SEQ: { main: string; hint: string; ms: number; phase: TensionPhase; vibe: number | number[] | null }[] = [
+  { main: 'Inhala profundo.',                     hint: 'Llena bien el pecho.',                           ms: 3000, phase: 'inhale',  vibe: null         },
+  { main: 'Aprieta los puños. Aguanta el aire.',  hint: 'Aprieta fuerte, pero nunca hasta sentir dolor.', ms: 5000, phase: 'tight',   vibe: [60, 40, 60] },
+  { main: 'Suelta todo de golpe.',                hint: 'Manos y aire al mismo tiempo.',                  ms: 1200, phase: 'release', vibe: 25           },
+  { main: 'Exhala lento.',                        hint: 'Deja que el cuerpo se afloje.',                  ms: 5500, phase: 'exhale',  vibe: null         },
 ];
 
 function HeadFace({ phase, color }: { phase: TensionPhase; color: string }) {
@@ -2351,7 +2371,7 @@ function Phase13({ onDone, color }: { onDone: () => void; color: string }) {
     <CenteredFlow>
       <FadeKey key="intro" k="intro">
         <h2 style={titleStyle}>Tensión y liberación.</h2>
-        <p style={mutedTextStyle}>Vamos a apretar los puños fuerte y luego soltar. Tres veces. Aprieta fuerte, pero nunca hasta sentir dolor.</p>
+        <p style={mutedTextStyle}>Vas a inhalar, apretar los puños con fuerza mientras aguantas el aire, y luego soltarlo todo de golpe. Tres rondas. Aprieta fuerte, pero nunca hasta sentir dolor.</p>
       </FadeKey>
       <Btn onClick={() => setState('active')}>Iniciar</Btn>
       <Btn variant="ghost" onClick={onDone}>Elegir otro método</Btn>
@@ -2379,9 +2399,11 @@ function Phase13({ onDone, color }: { onDone: () => void; color: string }) {
         <div style={{ height: 2, background: C.bdr, borderRadius: 2, overflow: 'hidden' }}>
           <div key={`bar-${step}-${rep}`} style={{ height: '100%', background: color, transformOrigin: 'left center', animation: `ancla-bar ${cur.ms}ms linear forwards` }} />
         </div>
-        <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: C.faint, marginTop: 14, textAlign: 'center' }}>
-          Aprieta fuerte, pero nunca hasta sentir dolor.
-        </p>
+        {cur.hint && (
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: C.faint, marginTop: 14, textAlign: 'center' }}>
+            {cur.hint}
+          </p>
+        )}
       </div>
       <Btn variant="quiet" onClick={onDone}>Si esto no se siente bien, elegir otro método</Btn>
     </CenteredFlow>
