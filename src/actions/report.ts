@@ -34,19 +34,19 @@ function buildAgressorText(plataforma: string, patterns: string[], identificador
 }
 
 async function getEmbedding(text: string): Promise<string> {
-  const key = process.env.GOOGLE_GENERATIVE_AI_API_KEY ?? process.env.GEMINI_API_KEY
+  const key   = process.env.GOOGLE_GENERATIVE_AI_API_KEY ?? process.env.GEMINI_API_KEY
+  const model = process.env.GEMINI_EMBEDDING_MODEL ?? 'text-embedding-004'
   if (!key) throw new Error('Gemini API key not configured')
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=${key}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:embedContent?key=${key}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content: { parts: [{ text }] }, outputDimensionality: 768 }),
     },
   )
-  if (!res.ok) throw new Error(`Gemini ${res.status}`)
+  if (!res.ok) throw new Error(`Gemini embedding ${res.status}: ${await res.text()}`)
   const json = await res.json() as { embedding: { values: number[] } }
-  // pgvector expects "[v1,v2,...,v768]"
   return `[${json.embedding.values.join(',')}]`
 }
 
@@ -219,9 +219,9 @@ async function analyzeAndLink(
       await createNewProfile(embeddingStr, reporteId, plataforma, patterns, municipio, supabase)
     }
     return
-  } catch {
+  } catch (err) {
     // Embedding or vector search failed — fall back to a basic alerta with no profile link
-    // so the police at least sees the report flagged, even without aggressor matching
+    console.error('[analyzeAndLink] embedding/vector error, falling back:', err)
   }
 
   await supabase.from('alertas').insert({
