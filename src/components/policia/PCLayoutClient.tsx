@@ -17,7 +17,7 @@ const TOP_H      = 56;
 
 const NAV_BASE = [
   { href: '/policia',              label: 'Dashboard',           icon: LayoutDashboard, badgeKey: null as null | 'alertasActivas' | 'totalReportes', exact: true  },
-  { href: '/policia/alertas',      label: 'Alertas',             icon: AlertTriangle,   badgeKey: 'alertasActivas' as const,                         exact: false },
+  { href: '/policia/alertas',      label: 'Señales de riesgo',   icon: AlertTriangle,   badgeKey: null,                                              exact: false },
   { href: '/policia/reportes',     label: 'Reportes directos',   icon: Heart,           badgeKey: 'totalReportes' as const,                          exact: false },
   { href: '/policia/perfiles',     label: 'Perfiles de agresores', icon: Users,         badgeKey: null,                                              exact: false },
   { href: '/policia/estadisticas', label: 'Estadísticas',        icon: BarChart3,       badgeKey: null,                                              exact: false },

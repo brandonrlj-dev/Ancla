@@ -1,10 +1,12 @@
 'use client';
 
+import { Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useEffect, useState, useTransition } from 'react';
 import useMediaQuery from '@mui/material/useMediaQuery';
-import { Heart, Clock, Link2, CheckCircle, AlertCircle, Loader2, Users, Shield } from 'lucide-react';
-import { getReportes, updateReporteEstado, decryptContacto } from '@/actions/policia';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { Heart, Clock, Link2, CheckCircle, AlertCircle, Loader2, Users, Shield, X, MapPin, Smartphone } from 'lucide-react';
+import { getReportes, getReportesFiltrados, updateReporteEstado, decryptContacto } from '@/actions/policia';
 import { mapReporteRow, type ReporteRow, type ContactoDecifrado } from '@/lib/policia-types';
 import { createClient } from '@/lib/supabase/client';
 
@@ -216,18 +218,29 @@ function ReporteCard({ rep, onUpdateEstado }: {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-export default function ReportesPage() {
-  const isMobile = useMediaQuery('(max-width: 768px)');
+function ReportesPageInner() {
+  const isMobile     = useMediaQuery('(max-width: 768px)');
+  const searchParams = useSearchParams();
+  const router       = useRouter();
+  const filtroPlat   = searchParams.get('plataforma') ?? undefined;
+  const filtroZona   = searchParams.get('zona') ?? undefined;
+  const filtroActivo = filtroPlat ?? filtroZona;
+
   const [reportes, setReportes] = useState<ReporteRow[]>([]);
   const [loading,  setLoading]  = useState(true);
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
-    getReportes().then((data) => { setReportes(data); setLoading(false); });
-  }, []);
+    setLoading(true);
+    const fetch = filtroActivo
+      ? getReportesFiltrados({ plataforma: filtroPlat, zona: filtroZona })
+      : getReportes();
+    fetch.then((data) => { setReportes(data); setLoading(false); });
+  }, [filtroPlat, filtroZona, filtroActivo]);
 
-  // Realtime — prepend new reports as they arrive
+  // Realtime — solo cuando no hay filtro activo
   useEffect(() => {
+    if (filtroActivo) return;
     const supabase = createClient();
     const channel = supabase
       .channel('reportes-live')
@@ -241,63 +254,79 @@ export default function ReportesPage() {
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, []);
+  }, [filtroActivo]);
 
   function handleUpdateEstado(id: string, estado: 'en_revision' | 'procesado') {
-    // Optimistic update
     setReportes((prev) => prev.map((r) => r.id === id ? { ...r, estado } : r));
-    startTransition(async () => {
-      await updateReporteEstado(id, estado);
-    });
+    startTransition(async () => { await updateReporteEstado(id, estado); });
   }
 
-  const nuevo     = reportes.filter((r) => r.estado === 'nuevo').length;
-  const revision  = reportes.filter((r) => r.estado === 'en_revision').length;
+  const visibles = reportes;
+  const nuevo    = visibles.filter((r) => r.estado === 'nuevo').length;
+  const revision = visibles.filter((r) => r.estado === 'en_revision').length;
 
   return (
     <div style={{ padding: isMobile ? '24px 16px' : '32px 32px', maxWidth: 900, margin: '0 auto' }}>
 
-      {/* Header banner */}
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        style={{ background: 'linear-gradient(135deg, var(--color-sage-500) 0%, var(--color-sage-600) 100%)', borderRadius: 18, padding: isMobile ? '24px 20px' : '28px 32px', marginBottom: 28, position: 'relative', overflow: 'hidden' }}
-      >
-        <div style={{ position: 'absolute', top: -30, right: -30, width: 120, height: 120, borderRadius: '50%', background: 'rgba(255,255,255,0.07)', pointerEvents: 'none' }} />
-        <div style={{ position: 'absolute', bottom: -20, right: 60, width: 80, height: 80, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', pointerEvents: 'none' }} />
-
-        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18 }}>
-          <div style={{ width: 48, height: 48, borderRadius: 14, background: 'rgba(255,255,255,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <Heart size={22} color="white" />
-          </div>
-          <div>
-            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: 600, color: 'white', marginBottom: 3 }}>
+      {/* Header */}
+      <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} style={{ marginBottom: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 4 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Heart size={20} color="var(--color-sage-500)" />
+            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>
               Reportes directos
             </h1>
-            <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.82rem', color: 'rgba(255,255,255,0.75)', lineHeight: 1.5 }}>
-              Enviados por jóvenes a través del canal ANCLA · En tiempo real
-            </p>
+            {!loading && (
+              <span style={{ background: 'var(--color-sage-500)', color: 'white', borderRadius: 999, padding: '2px 9px', fontSize: '0.72rem', fontFamily: 'var(--font-mono)', fontWeight: 700 }}>
+                {visibles.length}
+              </span>
+            )}
           </div>
-          {/* Live indicator */}
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#4ade80', boxShadow: '0 0 0 3px rgba(74,222,128,0.3)', animation: 'pulse 2s infinite' }} />
-            <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.72rem', color: 'rgba(255,255,255,0.8)' }}>En vivo</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#4ade80', boxShadow: '0 0 0 2px rgba(74,222,128,0.3)' }} />
+            <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.75rem', color: 'var(--color-text-tertiary)' }}>En vivo</span>
           </div>
         </div>
-
-        <div style={{ position: 'relative', display: 'flex', gap: 24, flexWrap: 'wrap' }}>
+        <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.82rem', color: 'var(--color-text-tertiary)', marginBottom: 16 }}>
+          Enviados por jóvenes a través del canal ANCLA · En tiempo real
+        </p>
+        {/* KPI chips */}
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
           {[
-            { label: 'Total recibidos', value: reportes.length },
-            { label: 'Nuevos',          value: nuevo },
-            { label: 'En revisión',     value: revision },
-          ].map((stat) => (
-            <div key={stat.label} style={{ textAlign: 'center' }}>
-              <div style={{ fontFamily: 'var(--font-mono)', fontSize: '1.6rem', fontWeight: 700, color: 'white', lineHeight: 1 }}>{stat.value}</div>
-              <div style={{ fontFamily: 'var(--font-body)', fontSize: '0.72rem', color: 'rgba(255,255,255,0.65)', marginTop: 3 }}>{stat.label}</div>
+            { label: filtroPlat ? `En ${filtroPlat}` : 'Total recibidos', value: visibles.length, color: 'var(--color-text-secondary)' },
+            { label: 'Nuevos',      value: nuevo,    color: '#ef4444' },
+            { label: 'En revisión', value: revision, color: '#f97316' },
+          ].map((s) => (
+            <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', borderRadius: 10, background: 'white', boxShadow: 'var(--shadow-sm)', border: '1px solid var(--color-border-subtle)' }}>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '1.1rem', fontWeight: 700, color: s.color, lineHeight: 1 }}>{s.value}</span>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.74rem', color: 'var(--color-text-tertiary)' }}>{s.label}</span>
             </div>
           ))}
         </div>
       </motion.div>
+
+      {/* Active filter banner */}
+      {filtroActivo && (
+        <motion.div
+          initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }}
+          style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', borderRadius: 10, background: '#fff7ed', border: '1px solid #fed7aa', marginBottom: 16 }}
+        >
+          {filtroPlat ? <Smartphone size={14} color="#f97316" /> : <MapPin size={14} color="#f97316" />}
+          <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.82rem', color: '#92400e', flex: 1 }}>
+            {filtroPlat
+              ? <>Reportes de plataforma <strong>{filtroPlat}</strong></>
+              : <>Reportes en zona <strong>{filtroZona}</strong></>
+            }
+            {' '}· {loading ? '…' : `${visibles.length} encontrado${visibles.length !== 1 ? 's' : ''}`}
+          </span>
+          <button
+            onClick={() => router.push('/policia/reportes')}
+            style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', color: '#92400e', fontFamily: 'var(--font-body)', fontSize: '0.76rem', padding: '2px 6px' }}
+          >
+            <X size={13} /> Quitar filtro
+          </button>
+        </motion.div>
+      )}
 
       {/* Loading */}
       {loading && (
@@ -308,11 +337,11 @@ export default function ReportesPage() {
       )}
 
       {/* Empty state */}
-      {!loading && reportes.length === 0 && (
+      {!loading && visibles.length === 0 && (
         <div style={{ textAlign: 'center', padding: '48px 24px', color: 'var(--color-text-tertiary)' }}>
           <Heart size={40} style={{ opacity: 0.3, marginBottom: 12 }} />
           <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.9rem' }}>
-            No hay reportes todavía. Aparecerán aquí en tiempo real cuando los jóvenes envíen.
+            {filtroPlat ? `Sin reportes de ${filtroPlat} aún.` : 'No hay reportes todavía. Aparecerán aquí en tiempo real cuando los jóvenes envíen.'}
           </p>
         </div>
       )}
@@ -320,7 +349,7 @@ export default function ReportesPage() {
       {/* Cards */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <AnimatePresence mode="popLayout">
-          {reportes.map((rep) => (
+          {visibles.map((rep) => (
             <ReporteCard key={rep.id} rep={rep} onUpdateEstado={handleUpdateEstado} />
           ))}
         </AnimatePresence>
@@ -331,5 +360,13 @@ export default function ReportesPage() {
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
       `}</style>
     </div>
+  );
+}
+
+export default function ReportesPage() {
+  return (
+    <Suspense>
+      <ReportesPageInner />
+    </Suspense>
   );
 }

@@ -44,6 +44,52 @@ export async function getReportes(): Promise<ReporteRow[]> {
   return (data ?? []).map(mapReporteRow)
 }
 
+export async function getReportesFiltrados({ plataforma, zona }: { plataforma?: string; zona?: string }): Promise<ReporteRow[]> {
+  const supabase = await createClient()
+
+  if (zona) {
+    const { data: alertasData } = await supabase
+      .from('alertas')
+      .select('id')
+      .eq('zona_geografica', zona)
+
+    const alertaIds = (alertasData ?? []).map((a) => a.id as string)
+    if (alertaIds.length === 0) return []
+
+    // Reports can be linked two ways:
+    // 1. alerta_id set directly (new profile path in createNewProfile)
+    // 2. Only via vinculaciones row (handleMatch path — alerta_id stays null on the report)
+    const [directRes, vinRes] = await Promise.all([
+      supabase.from('reportes_directos').select(REPORTE_SELECT).in('alerta_id', alertaIds),
+      supabase.from('vinculaciones').select('reporte_id').in('alerta_id', alertaIds),
+    ])
+
+    const directSet = new Set((directRes.data ?? []).map((r) => (r as Record<string, unknown>).id as string))
+    const extraIds  = (vinRes.data ?? [])
+      .map((v) => (v as Record<string, unknown>).reporte_id as string)
+      .filter((id) => !directSet.has(id))
+
+    const extraData = extraIds.length > 0
+      ? ((await supabase.from('reportes_directos').select(REPORTE_SELECT).in('id', extraIds)).data ?? [])
+      : []
+
+    return [...(directRes.data ?? []), ...extraData]
+      .sort((a, b) => new Date((b as Record<string, unknown>).created_at as string).getTime()
+                    - new Date((a as Record<string, unknown>).created_at as string).getTime())
+      .slice(0, 100)
+      .map((r) => mapReporteRow(r as Record<string, unknown>))
+  }
+
+  const { data } = await supabase
+    .from('reportes_directos')
+    .select(REPORTE_SELECT)
+    .eq('plataforma', plataforma ?? '')
+    .order('created_at', { ascending: false })
+    .limit(100)
+
+  return (data ?? []).map(mapReporteRow)
+}
+
 export async function updateReporteEstado(
   id: string,
   estado: 'nuevo' | 'en_revision' | 'procesado' | 'archivado',

@@ -211,6 +211,20 @@ const REPORTES_DEF = [
     perfil_agresor: { plataformas: ['WhatsApp','Instagram'], identificadores: ['5531234567'], telefono: '+52 55 3123 4567', pais_estimado: 'MX', tacticas: ['amenaza_difusion','presion'], descripcion_libre: 'Número con lada CDMX, posible VoIP' },
     adulto_al_tanto: true, alerta_id: null, estado: 'nuevo',
   },
+  {
+    folio: 'A-2F4A8C', hash_sha256: 'sha256:2f4a8c1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f',
+    plataforma: 'Discord', tipo: 'grooming', tipo_reporte: 'privado',
+    patrones: ['love_bombing','secretismo','aislamiento'],
+    perfil_agresor: { plataformas: ['Roblox','Discord'], identificadores: ['DarkGamer#5512'], telefono: null, pais_estimado: 'MX', tacticas: ['love_bombing','secretismo'], descripcion_libre: null },
+    adulto_al_tanto: null, alerta_id: alertaIds[3], estado: 'nuevo',
+  },
+  {
+    folio: 'A-9E1C7B', hash_sha256: 'sha256:9e1c7b2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0',
+    plataforma: 'TikTok', tipo: 'acoso', tipo_reporte: 'privado',
+    patrones: ['presion','manipulacion_emocional','multiple_cuentas'],
+    perfil_agresor: { plataformas: ['TikTok','Instagram'], identificadores: ['@tiktok_user9871'], telefono: null, pais_estimado: 'MX', tacticas: ['presion','manipulacion_emocional'], descripcion_libre: null },
+    adulto_al_tanto: null, alerta_id: alertaIds[5], estado: 'nuevo',
+  },
 ]
 
 const reporteIds = []
