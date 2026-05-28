@@ -79,7 +79,7 @@ export default function PCDashboard() {
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 16, marginBottom: 28 }}>
         {[
           { label: 'Alertas activas',          value: dashboard?.alertasActivas        ?? '—', trend: null, up: true,  icon: AlertTriangle, color: '#bf6b4a', href: '/policia/alertas'  },
-          { label: 'Agresores identificados', value: dashboard?.agresoresIdentificados ?? '—', trend: null, up: true,  icon: Users,         color: '#9e4a28', href: '#'                },
+          { label: 'Agresores identificados', value: dashboard?.agresoresIdentificados ?? '—', trend: null, up: true,  icon: Users,         color: '#9e4a28', href: '/policia/perfiles' },
           { label: 'Reportes directos',       value: dashboard?.totalReportes          ?? '—', trend: null, up: true,  icon: Heart,         color: '#6b7f5e', href: '/policia/reportes' },
           { label: 'En revisión',             value: dashboard?.reportesEnRevision     ?? '—', trend: null, up: false, icon: Search,        color: '#5b81a8', href: '/policia/reportes' },
         ].map((kpi, i) => (
@@ -119,7 +119,7 @@ export default function PCDashboard() {
             Distribución geográfica
           </div>
           <div style={{ display: 'flex', justifyContent: 'center' }}>
-            <NayaritMap size={240} />
+            <NayaritMap size={240} zonaStats={stats?.zonaStats ?? []} />
           </div>
         </motion.div>
 
@@ -211,14 +211,10 @@ export default function PCDashboard() {
           Plataformas de origen
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
-          {[
-            { name: 'Instagram DM', pct: 78, color: '#bf6b4a' },
-            { name: 'WhatsApp',     pct: 64, color: '#d4956b' },
-            { name: 'TikTok DM',   pct: 52, color: '#c17a5e' },
-            { name: 'Discord',      pct: 38, color: '#5b81a8' },
-            { name: 'Free Fire',    pct: 31, color: '#7a9e6f' },
-            { name: 'Snapchat',     pct: 24, color: '#a8906b' },
-          ].map((p) => (
+          {(stats?.plataformaStats ?? []).map((p, i) => {
+            const palette = ['#bf6b4a','#d4956b','#c17a5e','#5b81a8','#7a9e6f','#a8906b']
+            return { ...p, color: palette[i % palette.length] }
+          }).map((p) => (
             <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{ width: 96, fontFamily: 'var(--font-body)', fontSize: '0.78rem', color: 'var(--color-text-secondary)', flexShrink: 0 }}>
                 {p.name}

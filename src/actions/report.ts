@@ -79,11 +79,13 @@ interface MatchRow {
 // Match found: insert vinculación as a suggestion without touching num_victimas.
 // If there's no open alerta for the perfil, create a new one tied to the same profile.
 // Score >= 0.95: escalate alerta urgency so the police notices immediately.
+// Also accumulates municipio in the aggressor profile's zonas_activas.
 async function handleMatch(
   best: MatchRow,
   reporteId: string,
   plataforma: string,
   patterns: string[],
+  municipio: string | undefined,
   supabase: Supabase,
 ): Promise<void> {
   const { data: alerta } = await supabase
@@ -112,18 +114,26 @@ async function handleMatch(
     const { data: newAlerta, error } = await supabase
       .from('alertas')
       .insert({
-        nivel_urgencia: deriveUrgency(patterns),
-        num_victimas:   1,
-        perfil_id:      best.perfil_id,
-        plataformas:    [plataforma],
-        zona_geografica: null,
-        estado:         'nueva',
+        nivel_urgencia:  deriveUrgency(patterns),
+        num_victimas:    1,
+        perfil_id:       best.perfil_id,
+        plataformas:     [plataforma],
+        zona_geografica: municipio ?? null,
+        estado:          'nueva',
       })
       .select('id')
       .single()
 
     if (error || !newAlerta) return
     alertaId = newAlerta.id as string
+  }
+
+  // Add municipio to the aggressor's known zones (no duplicates via array_append logic)
+  if (municipio) {
+    await supabase.rpc('agregar_zona_agresor', {
+      p_perfil_id: best.perfil_id,
+      p_zona:      municipio,
+    })
   }
 
   // Insert as suggestion — police must confirm before num_victimas is updated
@@ -141,15 +151,17 @@ async function createNewProfile(
   reporteId: string,
   plataforma: string,
   patterns: string[],
+  municipio: string | undefined,
   supabase: Supabase,
 ): Promise<void> {
   const { data: perfil, error: perfilErr } = await supabase
     .from('perfiles_agresores')
     .insert({
-      patron_vector: embeddingStr,
-      plataformas:   [plataforma],
-      tacticas:      patterns,
-      nivel_riesgo:  deriveRiesgo(patterns),
+      patron_vector:  embeddingStr,
+      plataformas:    [plataforma],
+      tacticas:       patterns,
+      nivel_riesgo:   deriveRiesgo(patterns),
+      zonas_activas:  municipio ? [municipio] : [],
     })
     .select('id')
     .single()
@@ -163,7 +175,7 @@ async function createNewProfile(
       num_victimas:    1,
       perfil_id:       perfil.id,
       plataformas:     [plataforma],
-      zona_geografica: null,
+      zona_geografica: municipio ?? null,
       estado:          'nueva',
     })
     .select('id')
@@ -183,6 +195,7 @@ async function analyzeAndLink(
   plataforma: string,
   patterns: string[],
   identificador: string | undefined,
+  municipio: string | undefined,
   supabase: Supabase,
 ): Promise<void> {
   if (patterns.length === 0) return
@@ -201,9 +214,9 @@ async function analyzeAndLink(
     if (rpcErr) throw rpcErr
 
     if (matches && (matches as MatchRow[]).length > 0) {
-      await handleMatch((matches as MatchRow[])[0], reporteId, plataforma, patterns, supabase)
+      await handleMatch((matches as MatchRow[])[0], reporteId, plataforma, patterns, municipio, supabase)
     } else {
-      await createNewProfile(embeddingStr, reporteId, plataforma, patterns, supabase)
+      await createNewProfile(embeddingStr, reporteId, plataforma, patterns, municipio, supabase)
     }
     return
   } catch {
@@ -216,7 +229,7 @@ async function analyzeAndLink(
     num_victimas:    1,
     perfil_id:       null,
     plataformas:     [plataforma],
-    zona_geografica: null,
+    zona_geografica: municipio ?? null,
     estado:          'nueva',
   })
 }
@@ -235,6 +248,7 @@ export interface SubmitReportParams {
   patterns: string[]
   plataforma: string
   identificador?: string
+  municipio?: string
   tipoReporte: 'privado' | 'legal'
   contacto?: string
   contactoFamiliar?: string
@@ -298,7 +312,7 @@ export async function submitReport(params: SubmitReportParams): Promise<SubmitRe
 
   // Analysis runs after report is safely stored — any failure is silent
   try {
-    await analyzeAndLink(data.id, params.plataforma, params.patterns, params.identificador, supabase)
+    await analyzeAndLink(data.id, params.plataforma, params.patterns, params.identificador, params.municipio, supabase)
   } catch {
     // intentionally silent
   }

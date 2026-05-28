@@ -4,7 +4,7 @@ import { useState, useEffect, useTransition } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LayoutDashboard, AlertTriangle, Heart, BarChart3, Menu, X, Bell, LogOut } from 'lucide-react';
+import { LayoutDashboard, AlertTriangle, Heart, BarChart3, Users, Menu, X, Bell, LogOut } from 'lucide-react';
 import AnclaLogo from '@/components/brand/AnclaLogo';
 import Jumper from '@/components/nav/Jumper';
 import { logoutPolicia } from '@/actions/auth';
@@ -16,10 +16,11 @@ const SIDEBAR_W  = 280;
 const TOP_H      = 56;
 
 const NAV_BASE = [
-  { href: '/policia',              label: 'Dashboard',         icon: LayoutDashboard, badgeKey: null as null | 'alertasActivas' | 'totalReportes', exact: true  },
-  { href: '/policia/alertas',      label: 'Alertas',           icon: AlertTriangle,   badgeKey: 'alertasActivas' as const,                         exact: false },
-  { href: '/policia/reportes',     label: 'Reportes directos', icon: Heart,           badgeKey: 'totalReportes' as const,                          exact: false },
-  { href: '/policia/estadisticas', label: 'Estadísticas',      icon: BarChart3,       badgeKey: null,                                              exact: false },
+  { href: '/policia',              label: 'Dashboard',           icon: LayoutDashboard, badgeKey: null as null | 'alertasActivas' | 'totalReportes', exact: true  },
+  { href: '/policia/alertas',      label: 'Alertas',             icon: AlertTriangle,   badgeKey: 'alertasActivas' as const,                         exact: false },
+  { href: '/policia/reportes',     label: 'Reportes directos',   icon: Heart,           badgeKey: 'totalReportes' as const,                          exact: false },
+  { href: '/policia/perfiles',     label: 'Perfiles de agresores', icon: Users,         badgeKey: null,                                              exact: false },
+  { href: '/policia/estadisticas', label: 'Estadísticas',        icon: BarChart3,       badgeKey: null,                                              exact: false },
 ];
 
 function isActive(pathname: string, href: string, exact: boolean) {

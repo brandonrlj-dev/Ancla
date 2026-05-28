@@ -3,7 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { headers } from 'next/headers'
-import { mapReporteRow, mapAlertaRow, mapVinculacionRow, type ReporteRow, type DashboardData, type AlertaRow, type EstadisticasData, type VinculacionRow, type ContactoDecifrado } from '@/lib/policia-types'
+import { mapReporteRow, mapAlertaRow, mapVinculacionRow, mapPerfilRow, mapPerfilSimilarRow, mapVinculacionPerfilRow, type ReporteRow, type DashboardData, type AlertaRow, type EstadisticasData, type VinculacionRow, type ContactoDecifrado, type PerfilAgresorRow, type PerfilSimilarRow, type VinculacionPerfilRow } from '@/lib/policia-types'
 
 const REPORTE_SELECT =
   'id, folio, tipo, tipo_reporte, plataforma, patrones, contacto_cifrado, contacto_familiar_cifrado, adulto_al_tanto, estado, created_at'
@@ -212,18 +212,100 @@ export async function descartarVinculacion(vinculacionId: string): Promise<void>
   await supabase.from('vinculaciones').delete().eq('id', vinculacionId)
 }
 
+// ── Perfiles de agresores ─────────────────────────────────────────────────────
+
+const PERFIL_SELECT = 'id, plataformas, tacticas, zonas_activas, nivel_riesgo, num_reportes, created_at'
+
+export async function getPerfiles(): Promise<PerfilAgresorRow[]> {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('perfiles_agresores')
+    .select(PERFIL_SELECT)
+    .order('num_reportes', { ascending: false })
+    .limit(100)
+  return (data ?? []).map((r) => mapPerfilRow(r as Record<string, unknown>))
+}
+
+export async function getPerfilDetalle(id: string): Promise<{
+  perfil: PerfilAgresorRow | null
+  similares: PerfilSimilarRow[]
+  vinculaciones: VinculacionPerfilRow[]
+}> {
+  const supabase = await createClient()
+
+  const [perfilRes, similaresRes, vinculacionesRes] = await Promise.all([
+    supabase.from('perfiles_agresores').select(PERFIL_SELECT).eq('id', id).single(),
+    supabase.rpc('buscar_perfiles_similares', { p_perfil_id: id, p_limit: 5 }),
+    supabase.from('vinculaciones_perfiles').select('*').or(`perfil_a_id.eq.${id},perfil_b_id.eq.${id}`),
+  ])
+
+  return {
+    perfil:        perfilRes.data ? mapPerfilRow(perfilRes.data as Record<string, unknown>) : null,
+    similares:     (similaresRes.data ?? []).map((r) => mapPerfilSimilarRow(r as Record<string, unknown>)),
+    vinculaciones: (vinculacionesRes.data ?? []).map((r) => mapVinculacionPerfilRow(r as Record<string, unknown>)),
+  }
+}
+
+export async function confirmarVinculacionPerfil(
+  perfilAId: string,
+  perfilBId: string,
+  similitudScore: number,
+): Promise<void> {
+  const authClient = await createClient()
+  const { data: { user } } = await authClient.auth.getUser()
+  if (!user) throw new Error('No autorizado')
+
+  const [a, b] = [perfilAId, perfilBId].sort()
+  const service = createServiceClient()
+
+  await service.from('vinculaciones_perfiles').upsert(
+    { perfil_a_id: a, perfil_b_id: b, similitud_score: similitudScore, confirmada: true, descartada: false, agente_id: user.id },
+    { onConflict: 'perfil_a_id,perfil_b_id' },
+  )
+
+  const h  = await headers()
+  const ip = h.get('x-forwarded-for')?.split(',')[0].trim() ?? null
+  await service.from('audit_log').insert({
+    agente_id:    user.id,
+    agente_email: user.email ?? '',
+    accion:       'actualizar_estado',
+    recurso_tipo: 'vinculacion_perfil',
+    recurso_id:   a,
+    ip_address:   ip,
+  })
+}
+
+export async function descartarVinculacionPerfil(
+  perfilAId: string,
+  perfilBId: string,
+  similitudScore: number,
+): Promise<void> {
+  const authClient = await createClient()
+  const { data: { user } } = await authClient.auth.getUser()
+  if (!user) throw new Error('No autorizado')
+
+  const [a, b] = [perfilAId, perfilBId].sort()
+  const service = createServiceClient()
+
+  await service.from('vinculaciones_perfiles').upsert(
+    { perfil_a_id: a, perfil_b_id: b, similitud_score: similitudScore, confirmada: false, descartada: true, agente_id: user.id },
+    { onConflict: 'perfil_a_id,perfil_b_id' },
+  )
+}
+
 export async function getEstadisticas(): Promise<EstadisticasData> {
   const supabase = await createClient()
 
   const [alertasRes, reportesRes] = await Promise.all([
     supabase.from('alertas').select('zona_geografica').not('estado', 'eq', 'archivada'),
-    supabase.from('reportes_directos').select('tipo_reporte, created_at'),
+    supabase.from('reportes_directos').select('tipo_reporte, created_at, plataforma'),
   ])
 
-  // Count alertas per zone
+  // Count alertas per zone (skip nulls)
   const zoneCounts: Record<string, number> = {}
   for (const a of alertasRes.data ?? []) {
-    const zona = (a.zona_geografica as string) ?? 'Sin zona'
+    if (!a.zona_geografica) continue
+    const zona = a.zona_geografica as string
     zoneCounts[zona] = (zoneCounts[zona] ?? 0) + 1
   }
   const zonaStats = Object.entries(zoneCounts)
@@ -235,12 +317,24 @@ export async function getEstadisticas(): Promise<EstadisticasData> {
   const DAYS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
   const dayCounts: Record<number, { privado: number; legal: number }> = {}
   for (let i = 0; i < 7; i++) dayCounts[i] = { privado: 0, legal: 0 }
+
+  // Count reportes by plataforma
+  const platCounts: Record<string, number> = {}
   for (const r of reportesRes.data ?? []) {
     const day = new Date(r.created_at as string).getDay()
     if ((r.tipo_reporte as string) === 'legal') dayCounts[day].legal++
     else dayCounts[day].privado++
+
+    const plat = (r.plataforma as string) ?? 'Otra'
+    platCounts[plat] = (platCounts[plat] ?? 0) + 1
   }
   const weeklyReportes = DAYS.map((day, i) => ({ day, ...dayCounts[i] }))
 
-  return { zonaStats, weeklyReportes }
+  const total = reportesRes.data?.length ?? 0
+  const plataformaStats = Object.entries(platCounts)
+    .map(([name, count]) => ({ name, count, pct: total > 0 ? Math.round((count / total) * 100) : 0 }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 6)
+
+  return { zonaStats, weeklyReportes, plataformaStats }
 }

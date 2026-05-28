@@ -1,7 +1,6 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { nayaritZones } from '@/lib/mock-data';
 
 /* Simplified SVG outline of Nayarit state — approximate polygon */
 const NAYARIT_PATH = `
@@ -47,13 +46,26 @@ const riskColors = {
   low:    'var(--color-sage-500)',
 };
 
+// Static zone metadata — positions and display names only, no alert counts
+const ZONE_META: { id: string; name: string; pos: { x: number; y: number } }[] = [
+  { id: 'Tepic',                name: 'Tepic',              pos: { x: 110, y: 110 } },
+  { id: 'Bahía de Banderas',    name: 'Bahía de Banderas',  pos: { x: 60,  y: 175 } },
+  { id: 'Compostela',           name: 'Compostela',         pos: { x: 88,  y: 148 } },
+  { id: 'Xalisco',              name: 'Xalisco',            pos: { x: 105, y: 125 } },
+  { id: 'Santiago Ixcuintla',   name: 'Santiago Ixcuintla', pos: { x: 88,  y: 78  } },
+  { id: 'Ruiz',                 name: 'Ruiz',               pos: { x: 100, y: 55  } },
+]
+
 interface NayaritMapProps {
   size?: number;
   highlightZone?: string;
   className?: string;
+  zonaStats?: { name: string; alerts: number }[];
 }
 
-export default function NayaritMap({ size = 260, highlightZone, className }: NayaritMapProps) {
+export default function NayaritMap({ size = 260, highlightZone, className, zonaStats = [] }: NayaritMapProps) {
+  const maxAlerts = Math.max(1, ...zonaStats.map((z) => z.alerts))
+  const alertsByZone = Object.fromEntries(zonaStats.map((z) => [z.name, z.alerts]))
   return (
     <div className={className} style={{ position: 'relative' }}>
       <svg
@@ -84,15 +96,16 @@ export default function NayaritMap({ size = 260, highlightZone, className }: Nay
         />
 
         {/* Zone markers */}
-        {nayaritZones.map((zone) => {
-          const pos = zonePositions[zone.id] ?? { x: 110, y: 110 };
-          const col = riskColors[zone.risk as keyof typeof riskColors];
-          const isHighlighted = highlightZone === zone.id;
-          const glowRings = Math.ceil(zone.alerts / 30); // 1-3 rings
+        {ZONE_META.map((zone) => {
+          const alerts = alertsByZone[zone.id] ?? 0
+          const ratio  = alerts / maxAlerts  // 0–1
+          const col    = ratio >= 0.66 ? riskColors.high : ratio >= 0.33 ? riskColors.medium : riskColors.low
+          const isHighlighted = highlightZone === zone.id
+          const glowRings = alerts > 0 ? Math.min(3, Math.ceil(ratio * 3)) : 0
 
           return (
-            <g key={zone.id} transform={`translate(${pos.x}, ${pos.y})`}>
-              {/* Glow rings — more rings for more alerts */}
+            <g key={zone.id} transform={`translate(${zone.pos.x}, ${zone.pos.y})`}>
+              {/* Glow rings — proportional to alert count */}
               {Array.from({ length: glowRings }).map((_, ri) => (
                 <motion.circle
                   key={ri}
@@ -102,48 +115,35 @@ export default function NayaritMap({ size = 260, highlightZone, className }: Nay
                   strokeWidth="1"
                   opacity={0}
                   animate={{ r: [8 + ri * 9, 8 + ri * 9 + 10], opacity: [0.5, 0] }}
-                  transition={{
-                    duration: 2.4,
-                    repeat: Infinity,
-                    delay: ri * 0.8,
-                    ease: 'easeOut',
-                  }}
+                  transition={{ duration: 2.4, repeat: Infinity, delay: ri * 0.8, ease: 'easeOut' }}
                 />
               ))}
 
               {/* Zone dot */}
               <motion.circle
-                r={isHighlighted ? 7 : 5}
-                fill={col}
-                filter="url(#map-glow)"
-                animate={{
-                  r: isHighlighted ? [6, 8, 6] : 5,
-                  opacity: 1,
-                }}
+                r={isHighlighted ? 7 : alerts > 0 ? 5 : 3}
+                fill={alerts > 0 ? col : 'var(--color-night-200)'}
+                filter={alerts > 0 ? 'url(#map-glow)' : undefined}
+                animate={{ r: isHighlighted ? [6, 8, 6] : undefined, opacity: 1 }}
                 transition={{ duration: 1.5, repeat: isHighlighted ? Infinity : 0, ease: 'easeInOut' }}
               />
 
               {/* Zone label */}
-              <text
-                y={-10}
-                textAnchor="middle"
-                fontSize="8"
-                fill="var(--color-night-700)"
-                fontFamily="var(--font-body)"
-                fontWeight="500"
-              >
+              <text y={-10} textAnchor="middle" fontSize="8" fill="var(--color-night-700)" fontFamily="var(--font-body)" fontWeight="500">
                 {zone.name}
               </text>
 
-              {/* Alert count chip */}
-              <g transform="translate(6, -14)">
-                <rect x="0" y="-7" width="20" height="12" rx="6" fill={col} />
-                <text y="1" textAnchor="middle" x="10" fontSize="7" fill="white" fontFamily="var(--font-body)" fontWeight="700">
-                  {zone.alerts}
-                </text>
-              </g>
+              {/* Alert count chip — only when there's data */}
+              {alerts > 0 && (
+                <g transform="translate(6, -14)">
+                  <rect x="0" y="-7" width="20" height="12" rx="6" fill={col} />
+                  <text y="1" textAnchor="middle" x="10" fontSize="7" fill="white" fontFamily="var(--font-body)" fontWeight="700">
+                    {alerts}
+                  </text>
+                </g>
+              )}
             </g>
-          );
+          )
         })}
       </svg>
     </div>

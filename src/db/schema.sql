@@ -32,6 +32,7 @@ create table perfiles_agresores (
   patron_vector  vector(768)    not null,      -- Google text-embedding-004 dimensions
   plataformas    text[]         not null,      -- ['Instagram', 'Roblox', 'Free Fire']
   tacticas       text[]         not null,      -- ['love_bombing', 'aislamiento', 'solicitud_imagen']
+  zonas_activas  text[]         not null default '{}',  -- municipios donde ha actuado el agresor
   -- JSONB schema:
   -- {
   --   "franjas": [{"dias_semana": [0-6], "hora_inicio": "HH:MM", "hora_fin": "HH:MM"}],
@@ -432,6 +433,134 @@ grant all on table public.push_suscripciones  to service_role;
 
 -- sequences (needed for INSERT on tables with generated IDs)
 grant all on all sequences in schema public to service_role;
+
+-- ============================================================
+-- FUNCTION: agregar_zona_agresor
+-- Appends a municipio to zonas_activas only if not already present.
+-- ============================================================
+
+create or replace function agregar_zona_agresor(p_perfil_id uuid, p_zona text)
+returns void language sql security definer as $$
+  update perfiles_agresores
+  set zonas_activas = array_append(zonas_activas, p_zona),
+      updated_at    = now()
+  where id = p_perfil_id
+    and not (zonas_activas @> array[p_zona]);
+$$;
+
+-- Migration for existing instances:
+-- alter table perfiles_agresores add column if not exists zonas_activas text[] not null default '{}';
+
+-- authenticated role needs SELECT so RLS policies can be evaluated
+-- (service_role writes, authenticated reads via RLS)
+grant select on table public.reportes_directos  to authenticated;
+grant select on table public.alertas             to authenticated;
+grant select on table public.perfiles_agresores  to authenticated;
+grant select on table public.vinculaciones        to authenticated;
+grant select on table public.config_plataformas  to authenticated;
+
+-- ============================================================
+-- TABLE: vinculaciones_perfiles
+-- Police-confirmed or -discarded cross-profile links.
+-- Canonical ordering enforced: perfil_a_id < perfil_b_id (UUID lex).
+-- ============================================================
+
+create table vinculaciones_perfiles (
+  id              uuid        primary key default gen_random_uuid(),
+  perfil_a_id     uuid        not null references perfiles_agresores(id) on delete cascade,
+  perfil_b_id     uuid        not null references perfiles_agresores(id) on delete cascade,
+  similitud_score float       not null check (similitud_score >= 0 and similitud_score <= 1),
+  confirmada      boolean     not null default false,
+  descartada      boolean     not null default false,
+  agente_id       uuid,
+  created_at      timestamptz not null default now(),
+  check (perfil_a_id < perfil_b_id),
+  unique (perfil_a_id, perfil_b_id)
+);
+
+create index vinculaciones_perfiles_a_idx on vinculaciones_perfiles (perfil_a_id);
+create index vinculaciones_perfiles_b_idx on vinculaciones_perfiles (perfil_b_id);
+
+alter table vinculaciones_perfiles enable row level security;
+
+create policy "agentes_ven_vinc_perfiles" on vinculaciones_perfiles
+  for select using (es_agente_policial());
+
+create policy "agentes_gestionan_vinc_perfiles" on vinculaciones_perfiles
+  for all using (es_agente_policial()) with check (es_agente_policial());
+
+grant all   on table public.vinculaciones_perfiles to service_role;
+grant select, insert, update on table public.vinculaciones_perfiles to authenticated;
+
+-- ============================================================
+-- FUNCTION: buscar_perfiles_similares
+-- Cross-profile vector search using an existing profile's own vector.
+-- Lower threshold (0.70) than report matching — surfaces candidates
+-- for police review, not automatic linking.
+-- ============================================================
+
+create or replace function buscar_perfiles_similares(
+  p_perfil_id uuid,
+  p_limit     int default 5
+)
+returns table (
+  perfil_id     uuid,
+  similitud     float,
+  num_reportes  int,
+  nivel_riesgo  nivel_riesgo_t,
+  plataformas   text[],
+  tacticas      text[],
+  zonas_activas text[]
+)
+language plpgsql stable security definer
+as $$
+declare
+  v_vector vector(768);
+begin
+  select patron_vector into v_vector
+  from perfiles_agresores
+  where id = p_perfil_id;
+
+  if v_vector is null then return; end if;
+
+  return query
+  select
+    pa.id,
+    1 - (pa.patron_vector <=> v_vector) as similitud,
+    pa.num_reportes,
+    pa.nivel_riesgo,
+    pa.plataformas,
+    pa.tacticas,
+    pa.zonas_activas
+  from perfiles_agresores pa
+  where
+    pa.id != p_perfil_id
+    and 1 - (pa.patron_vector <=> v_vector) >= 0.70
+  order by similitud desc
+  limit p_limit;
+end;
+$$;
+
+-- Migration for existing instances — run in Supabase SQL Editor:
+-- create table if not exists vinculaciones_perfiles (
+--   id uuid primary key default gen_random_uuid(),
+--   perfil_a_id uuid not null references perfiles_agresores(id) on delete cascade,
+--   perfil_b_id uuid not null references perfiles_agresores(id) on delete cascade,
+--   similitud_score float not null,
+--   confirmada boolean not null default false,
+--   descartada boolean not null default false,
+--   agente_id uuid,
+--   created_at timestamptz not null default now(),
+--   check (perfil_a_id < perfil_b_id),
+--   unique (perfil_a_id, perfil_b_id)
+-- );
+-- create index if not exists vinculaciones_perfiles_a_idx on vinculaciones_perfiles (perfil_a_id);
+-- create index if not exists vinculaciones_perfiles_b_idx on vinculaciones_perfiles (perfil_b_id);
+-- alter table vinculaciones_perfiles enable row level security;
+-- create policy "agentes_ven_vinc_perfiles" on vinculaciones_perfiles for select using (es_agente_policial());
+-- create policy "agentes_gestionan_vinc_perfiles" on vinculaciones_perfiles for all using (es_agente_policial()) with check (es_agente_policial());
+-- grant all on table public.vinculaciones_perfiles to service_role;
+-- grant select, insert, update on table public.vinculaciones_perfiles to authenticated;
 
 -- ============================================================
 -- REALTIME: enable for police dashboard live updates

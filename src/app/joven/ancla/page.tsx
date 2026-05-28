@@ -150,6 +150,7 @@ export default function AnclaPage() {
   const [plataforma,       setPlataforma]       = useState(escudoResult?.plataforma ?? '')
   const [tipoAbuso,        setTipoAbuso]        = useState<string[]>([])
   const [identificador,    setIdentificador]    = useState(escudoResult?.identificador ?? '')
+  const [municipio,        setMunicipio]        = useState('')
   const [localOcrText,     setLocalOcrText]     = useState(escudoResult?.ocrText ?? '')
   const [imageFile,        setImageFile]        = useState<File | null>(null)
   const [imagePreviewUrl,  setImagePreviewUrl]  = useState<string | null>(null)
@@ -267,6 +268,7 @@ export default function AnclaPage() {
           patterns: allPatterns,
           plataforma,
           identificador: identificador.trim() || undefined,
+          municipio: municipio || undefined,
           tipoReporte: ruta!,
           contactoFamiliar: ruta === 'legal' ? contactoFamiliar.trim() : undefined,
           nombreFamiliar: nombreFamiliar.trim() || undefined,
@@ -494,27 +496,49 @@ export default function AnclaPage() {
 
                 {/* ── STEP 3: Agresor ──────────────────────────────────── */}
                 {step === 3 && (
-                  <div style={card}>
-                    <p style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '1rem', color: 'var(--color-text-primary)', marginBottom: 6 }}>
-                      ¿Sabes cómo identificar a esta persona?
-                      {escudoResult?.identificador && (
-                        <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.75rem', fontWeight: 400, color: 'var(--color-calm-600)', marginLeft: 8 }}>
-                          (precargado)
-                        </span>
-                      )}
-                    </p>
-                    <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--color-text-tertiary)', marginBottom: 14, lineHeight: 1.6 }}>
-                      Usuario, número de teléfono, nombre — lo que tengas. Este campo es opcional.
-                    </p>
-                    <input
-                      type="text"
-                      value={identificador}
-                      onChange={(e) => setIdentificador(e.target.value)}
-                      placeholder="@usuario, número, nombre..."
-                      style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1.5px solid var(--color-border)', fontFamily: 'var(--font-body)', fontSize: '0.9rem', color: 'var(--color-text-primary)', background: 'white', outline: 'none', boxSizing: 'border-box' }}
-                      onFocus={(e) => (e.target.style.borderColor = 'var(--color-calm-400)')}
-                      onBlur={(e) => (e.target.style.borderColor = 'var(--color-border)')}
-                    />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <div style={card}>
+                      <p style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '1rem', color: 'var(--color-text-primary)', marginBottom: 6 }}>
+                        ¿Sabes cómo identificar a esta persona?
+                        {escudoResult?.identificador && (
+                          <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.75rem', fontWeight: 400, color: 'var(--color-calm-600)', marginLeft: 8 }}>
+                            (precargado)
+                          </span>
+                        )}
+                      </p>
+                      <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--color-text-tertiary)', marginBottom: 14, lineHeight: 1.6 }}>
+                        Usuario, número de teléfono, nombre — lo que tengas. Este campo es opcional.
+                      </p>
+                      <input
+                        type="text"
+                        value={identificador}
+                        onChange={(e) => setIdentificador(e.target.value)}
+                        placeholder="@usuario, número, nombre..."
+                        style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1.5px solid var(--color-border)', fontFamily: 'var(--font-body)', fontSize: '0.9rem', color: 'var(--color-text-primary)', background: 'white', outline: 'none', boxSizing: 'border-box' }}
+                        onFocus={(e) => (e.target.style.borderColor = 'var(--color-calm-400)')}
+                        onBlur={(e) => (e.target.style.borderColor = 'var(--color-border)')}
+                      />
+                    </div>
+                    <div style={card}>
+                      <p style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '1rem', color: 'var(--color-text-primary)', marginBottom: 6 }}>
+                        ¿En qué municipio ocurrió?
+                      </p>
+                      <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--color-text-tertiary)', marginBottom: 14, lineHeight: 1.6 }}>
+                        Opcional. Ayuda a identificar patrones geográficos.
+                      </p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                        {['Tepic', 'Bahía de Banderas', 'Compostela', 'Xalisco', 'Santiago Ixcuintla', 'Ruiz', 'Otro municipio'].map((m) => (
+                          <button
+                            key={m}
+                            type="button"
+                            onClick={() => setMunicipio(municipio === m ? '' : m)}
+                            style={{ padding: '7px 16px', borderRadius: 999, border: `1.5px solid ${municipio === m ? 'var(--color-calm-500)' : 'var(--color-border)'}`, background: municipio === m ? 'var(--color-calm-50)' : 'white', color: municipio === m ? 'var(--color-calm-700)' : 'var(--color-text-secondary)', fontFamily: 'var(--font-body)', fontSize: '0.85rem', fontWeight: municipio === m ? 600 : 400, cursor: 'pointer', transition: 'all 150ms' }}
+                          >
+                            {m}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 )}
 
