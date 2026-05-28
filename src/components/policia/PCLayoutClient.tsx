@@ -74,7 +74,8 @@ function SidebarContent({ pathname, router, agentName, onNav, alertasActivas, to
   alertasActivas: number;
   totalReportes: number;
 }) {
-  const [isPending, startTransition] = useTransition();
+  const [isPending,       startTransition] = useTransition();
+  const [confirmLogout,   setConfirmLogout] = useState(false);
   const initials = agentName.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
 
   const badges: Record<string, number | null> = {
@@ -118,7 +119,7 @@ function SidebarContent({ pathname, router, agentName, onNav, alertasActivas, to
             </div>
           </div>
           <button
-            onClick={() => startTransition(() => logoutPolicia())}
+            onClick={() => setConfirmLogout(true)}
             disabled={isPending}
             title="Cerrar sesión"
             style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6889a8', padding: 4, flexShrink: 0, opacity: isPending ? 0.5 : 1 }}
@@ -127,6 +128,50 @@ function SidebarContent({ pathname, router, agentName, onNav, alertasActivas, to
           </button>
         </div>
       </div>
+
+      {/* Logout confirmation modal */}
+      <AnimatePresence>
+        {confirmLogout && (
+          <motion.div
+            key="logout-overlay"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={() => setConfirmLogout(false)}
+            style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+            <motion.div
+              key="logout-card"
+              initial={{ opacity: 0, scale: 0.95, y: 8 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }}
+              onClick={(e) => e.stopPropagation()}
+              style={{ background: 'white', borderRadius: 16, padding: '28px 28px 24px', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', maxWidth: 340, width: '90%' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                <LogOut size={18} color="#bf6b4a" />
+                <span style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '1rem', color: 'var(--color-text-primary)' }}>
+                  ¿Cerrar sesión?
+                </span>
+              </div>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.84rem', color: 'var(--color-text-secondary)', marginBottom: 24, lineHeight: 1.5 }}>
+                Se cerrará la sesión de <strong>{agentName}</strong>. Tendrás que volver a iniciar sesión para acceder al portal.
+              </p>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                <button
+                  onClick={() => setConfirmLogout(false)}
+                  style={{ padding: '8px 18px', borderRadius: 999, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '0.82rem', color: 'var(--color-text-secondary)' }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => startTransition(() => logoutPolicia())}
+                  disabled={isPending}
+                  style={{ padding: '8px 18px', borderRadius: 999, border: 'none', background: '#2c3e50', cursor: isPending ? 'not-allowed' : 'pointer', fontFamily: 'var(--font-body)', fontSize: '0.82rem', fontWeight: 600, color: 'white', opacity: isPending ? 0.6 : 1 }}
+                >
+                  {isPending ? 'Cerrando…' : 'Cerrar sesión'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

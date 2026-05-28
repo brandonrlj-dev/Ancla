@@ -33,6 +33,7 @@ const estadoConfig: Record<string, { label: string; color: string; bg: string; i
 
 function deriveUrgency(r: ReporteRow): string {
   if (r.patrones.includes('amenaza_difusion')) return 'critica';
+  if (r.patrones.includes('solicitud_imagen') && r.patrones.length >= 2) return 'critica';
   if (r.patrones.length >= 2) return 'alta';
   if (r.patrones.length === 1) return 'media';
   return 'baja';
@@ -112,7 +113,9 @@ function ReporteCard({ rep, onUpdateEstado }: {
             {/* Aggressor identifiers */}
             {rep.identificadoresAgresor.length > 0 && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
-                <Smartphone size={11} color="var(--color-text-tertiary)" />
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.7rem', color: 'var(--color-text-tertiary)', flexShrink: 0 }}>
+                  Identificador del agresor:
+                </span>
                 {rep.identificadoresAgresor.map((id) => (
                   <span key={id} style={{ fontFamily: 'var(--font-mono)', fontSize: '0.73rem', background: '#f0f4f8', border: '1px solid #d1dce8', borderRadius: 6, padding: '2px 8px', color: '#3d5e81', fontWeight: 600 }}>
                     {id}
@@ -236,7 +239,8 @@ function ReportesPageInner() {
   const router       = useRouter();
   const filtroPlat   = searchParams.get('plataforma') ?? undefined;
   const filtroZona   = searchParams.get('zona') ?? undefined;
-  const filtroActivo = filtroPlat ?? filtroZona;
+  const filtroFolio  = searchParams.get('folio') ?? undefined;
+  const filtroActivo = filtroPlat ?? filtroZona ?? filtroFolio;
 
   const [reportes, setReportes] = useState<ReporteRow[]>([]);
   const [loading,  setLoading]  = useState(true);
@@ -244,15 +248,15 @@ function ReportesPageInner() {
 
   useEffect(() => {
     setLoading(true);
-    const fetch = filtroActivo
+    const fetch = (filtroPlat || filtroZona)
       ? getReportesFiltrados({ plataforma: filtroPlat, zona: filtroZona })
       : getReportes();
     fetch.then((data) => { setReportes(data); setLoading(false); });
-  }, [filtroPlat, filtroZona, filtroActivo]);
+  }, [filtroPlat, filtroZona, filtroFolio]);
 
-  // Realtime — solo cuando no hay filtro activo
+  // Realtime — solo cuando no hay filtro de plataforma/zona activo
   useEffect(() => {
-    if (filtroActivo) return;
+    if (filtroPlat || filtroZona) return;
     const supabase = createClient();
     const channel = supabase
       .channel('reportes-live')
@@ -273,9 +277,10 @@ function ReportesPageInner() {
     startTransition(async () => { await updateReporteEstado(id, estado); });
   }
 
-  const visibles = reportes;
-  const nuevo    = visibles.filter((r) => r.estado === 'nuevo').length;
-  const revision = visibles.filter((r) => r.estado === 'en_revision').length;
+  const visibles  = filtroFolio ? reportes.filter((r) => r.folio === filtroFolio) : reportes;
+  const nuevo     = visibles.filter((r) => r.estado === 'nuevo').length;
+  const revision  = visibles.filter((r) => r.estado === 'en_revision').length;
+  const atendidos = visibles.filter((r) => r.estado === 'procesado').length;
 
   return (
     <div style={{ padding: isMobile ? '24px 16px' : '32px 32px', maxWidth: 900, margin: '0 auto' }}>
@@ -306,8 +311,9 @@ function ReportesPageInner() {
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
           {[
             { label: filtroPlat ? `En ${filtroPlat}` : 'Total recibidos', value: visibles.length, color: 'var(--color-text-secondary)' },
-            { label: 'Nuevos',      value: nuevo,    color: '#ef4444' },
-            { label: 'En revisión', value: revision, color: '#f97316' },
+            { label: 'Nuevos',      value: nuevo,     color: '#ef4444' },
+            { label: 'En revisión', value: revision,  color: '#f97316' },
+            { label: 'Atendidos',   value: atendidos, color: '#22c55e' },
           ].map((s) => (
             <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', borderRadius: 10, background: 'white', boxShadow: 'var(--shadow-sm)', border: '1px solid var(--color-border-subtle)' }}>
               <span style={{ fontFamily: 'var(--font-mono)', fontSize: '1.1rem', fontWeight: 700, color: s.color, lineHeight: 1 }}>{s.value}</span>
@@ -323,11 +329,13 @@ function ReportesPageInner() {
           initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }}
           style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', borderRadius: 10, background: '#fff7ed', border: '1px solid #fed7aa', marginBottom: 16 }}
         >
-          {filtroPlat ? <Smartphone size={14} color="#f97316" /> : <MapPin size={14} color="#f97316" />}
+          {filtroFolio ? <Heart size={14} color="#f97316" /> : filtroPlat ? <Smartphone size={14} color="#f97316" /> : <MapPin size={14} color="#f97316" />}
           <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.82rem', color: '#92400e', flex: 1 }}>
-            {filtroPlat
-              ? <>Reportes de plataforma <strong>{filtroPlat}</strong></>
-              : <>Reportes en zona <strong>{filtroZona}</strong></>
+            {filtroFolio
+              ? <>Reporte <strong>{filtroFolio}</strong></>
+              : filtroPlat
+                ? <>Reportes de plataforma <strong>{filtroPlat}</strong></>
+                : <>Reportes en zona <strong>{filtroZona}</strong></>
             }
             {' '}· {loading ? '…' : `${visibles.length} encontrado${visibles.length !== 1 ? 's' : ''}`}
           </span>

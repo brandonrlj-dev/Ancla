@@ -20,6 +20,7 @@ const urgencyColors: Record<string, string> = {
 
 function deriveUrgency(r: ReporteRow) {
   if (r.patrones.includes('amenaza_difusion')) return 'critica';
+  if (r.patrones.includes('solicitud_imagen') && r.patrones.length >= 2) return 'critica';
   if (r.patrones.length >= 2) return 'alta';
   if (r.patrones.length === 1) return 'media';
   return 'baja';

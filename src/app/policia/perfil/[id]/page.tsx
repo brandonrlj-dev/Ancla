@@ -211,7 +211,7 @@ export default function PerfilDetallePage() {
             {reportes.map((rep) => (
               <div
                 key={rep.id}
-                onClick={() => router.push(`/policia/reportes?id=${rep.id}`)}
+                onClick={() => router.push(`/policia/reportes?folio=${rep.folio}`)}
                 style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 10, cursor: 'pointer', transition: 'background 150ms' }}
                 onMouseEnter={(e) => { (e.currentTarget.style.background = 'var(--color-gray-50)'); }}
                 onMouseLeave={(e) => { (e.currentTarget.style.background = 'transparent'); }}
@@ -247,7 +247,7 @@ export default function PerfilDetallePage() {
           </span>
         </div>
         <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.78rem', color: 'var(--color-text-tertiary)', marginBottom: 20, lineHeight: 1.5 }}>
-          Perfiles con vector de comportamiento similar (≥ 70% similitud). El policía decide si corresponden al mismo agresor.
+          Perfiles con comportamiento similar detectado automáticamente por plataforma. El policía decide si corresponden al mismo agresor.
         </p>
 
         {similares.length === 0 ? (

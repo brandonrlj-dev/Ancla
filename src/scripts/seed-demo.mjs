@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Seed script for ANCLA demo — Nayarit data
+// Seed script for ANCLA demo — Nayarit data v3
 // Run: npm run seed
 // Requires .env.local with NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, GOOGLE_GENERATIVE_AI_API_KEY
 
@@ -21,7 +21,7 @@ function loadEnv() {
       if (!process.env[key]) process.env[key] = value
     }
   } catch {
-    console.error('Could not read .env.local — make sure you run this from the project root.')
+    console.error('Could not read .env.local — run from project root.')
     process.exit(1)
   }
 }
@@ -33,7 +33,7 @@ const SERVICE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY
 const GEMINI_KEY   = process.env.GOOGLE_GENERATIVE_AI_API_KEY
 
 if (!SUPABASE_URL || !SERVICE_KEY || !GEMINI_KEY) {
-  console.error('Missing env vars: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, GOOGLE_GENERATIVE_AI_API_KEY')
+  console.error('Missing: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, GOOGLE_GENERATIVE_AI_API_KEY')
   process.exit(1)
 }
 
@@ -43,44 +43,68 @@ const supabase = createClient(SUPABASE_URL, SERVICE_KEY, {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+function ok(label)        { console.log(`  ✓ ${label}`) }
+function fail(label, err) { console.error(`  ✗ ${label}: ${err?.message ?? err}`); throw err }
+
+function deriveUrgency(tacticas) {
+  if (tacticas.includes('amenaza_difusion')) return 'critica'
+  if (tacticas.includes('solicitud_imagen') && tacticas.length >= 2) return 'critica'
+  if (tacticas.length >= 2) return 'alta'
+  if (tacticas.length === 1) return 'media'
+  return 'baja'
+}
+
+function deriveRiesgo(tacticas) {
+  if (tacticas.includes('amenaza_difusion')) return 'critico'
+  if (tacticas.length >= 2) return 'alto'
+  return 'medio'
+}
+
+// ── Embedding ─────────────────────────────────────────────────────────────────
+
+let EMBED_MODEL = null
+
+async function resolveEmbedModel() {
+  if (EMBED_MODEL) return EMBED_MODEL
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${GEMINI_KEY}`)
+  if (!res.ok) throw new Error(`ListModels ${res.status}`)
+  const json = await res.json()
+  const model = (json.models ?? []).find(m => m.supportedGenerationMethods?.includes('embedContent'))
+  if (!model) { console.error('  ✗ Sin modelo de embedding para esta API key'); process.exit(1) }
+  EMBED_MODEL = model.name
+  console.log(`  Modelo de embedding: ${EMBED_MODEL}`)
+  return EMBED_MODEL
+}
+
 async function embed(text) {
+  const model = await resolveEmbedModel()
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/${EMBED_MODEL}:embedContent?key=${GEMINI_KEY}`,
+    `https://generativelanguage.googleapis.com/v1beta/${model}:embedContent?key=${GEMINI_KEY}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        content: { parts: [{ text }] },
-        outputDimensionality: 768,
-      }),
+      body: JSON.stringify({ content: { parts: [{ text }] }, outputDimensionality: 768 }),
     },
   )
-  if (!res.ok) throw new Error(`Embedding API ${res.status}: ${await res.text()}`)
+  if (!res.ok) throw new Error(`Embedding ${res.status}: ${await res.text()}`)
   const json = await res.json()
   return `[${json.embedding.values.join(',')}]`
 }
 
-function ok(label)    { console.log(`  ✓ ${label}`) }
-function fail(label, err) { console.error(`  ✗ ${label}: ${err.message}`); throw err }
+// ── Step 0: Cleanup ───────────────────────────────────────────────────────────
 
-// ── Diagnóstico: listar modelos disponibles ───────────────────────────────────
+console.log('\n🗑️  Limpiando registros anteriores...')
 
-console.log('\n🔍 Modelos de embedding disponibles con esta API key...')
-const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${GEMINI_KEY}`)
-const listJson = await listRes.json()
-const embeddingModels = (listJson.models ?? []).filter(m => m.supportedGenerationMethods?.includes('embedContent'))
-if (embeddingModels.length === 0) {
-  console.error('  ✗ Ningún modelo de embedding disponible con esta key')
-  console.log('  Modelos disponibles (todos):', (listJson.models ?? []).map(m => m.name).join(', '))
-  process.exit(1)
+const NEVER = '00000000-0000-0000-0000-000000000000'
+for (const table of ['vinculaciones_perfiles', 'vinculaciones', 'reportes_directos', 'alertas', 'perfiles_agresores']) {
+  const { error } = await supabase.from(table).delete().neq('id', NEVER)
+  if (error) console.warn(`  ⚠ ${table}: ${error.message}`)
+  else ok(table)
 }
-console.log('  Modelos con embedContent:', embeddingModels.map(m => m.name).join(', '))
-const EMBED_MODEL = embeddingModels[0].name  // ej. "models/text-embedding-004"
-console.log(`  Usando: ${EMBED_MODEL}\n`)
 
 // ── Step 1: Agent accounts ────────────────────────────────────────────────────
 
-console.log('\n📋 Creando cuentas de agentes...')
+console.log('\n👮 Verificando cuentas de agentes...')
 
 const AGENTS = [
   { email: 'agente1@policia-nayarit.gob.mx', password: 'AnclaDemo2025!', nombre: 'Lic. Ramírez' },
@@ -90,13 +114,9 @@ const AGENTS = [
 for (const agent of AGENTS) {
   const { data: list } = await supabase.auth.admin.listUsers({ perPage: 200 })
   const existing = list?.users?.find(u => u.email === agent.email)
-  if (existing) {
-    ok(`${agent.email} (ya existe)`)
-    continue
-  }
+  if (existing) { ok(`${agent.email} (ya existe)`); continue }
   const { error } = await supabase.auth.admin.createUser({
-    email: agent.email,
-    password: agent.password,
+    email: agent.email, password: agent.password,
     user_metadata: { rol: 'policia', nombre: agent.nombre },
     email_confirm: true,
   })
@@ -104,151 +124,327 @@ for (const agent of AGENTS) {
   else ok(agent.email)
 }
 
-// ── Step 2: Aggressor profiles with embeddings ────────────────────────────────
+// ── Scenario definitions ──────────────────────────────────────────────────────
+//
+// Regla: 1 perfil = 1 plataforma (igual que el flujo real de analyzeAndLink).
+// Si 2 reportes comparten plataforma + identificador → van al mismo perfil (num_reportes acumula).
+// Si el policía sospecha que 2 perfiles distintos son la misma persona (distinta plataforma
+// o distinto usuario) → se refleja en vinculaciones_perfiles (step 3), no en el perfil mismo.
+//
+// Escenarios de demostración:
+//
+//   [A] @kevin_mx99 en Instagram — 2 reportes (mismo usuario, misma plataforma)
+//   [B] 3311234567  en WhatsApp  — 1 reporte  (posiblemente el mismo que [A], plataforma distinta)
+//   [C] @kevsports_oficial en Instagram — 2 reportes (tácticas similares a [A], ¿el mismo?)
+//   [D] xXDarkXx1234 en Roblox   — 1 reporte
+//   [E] darkgamer#8821 en Discord — 1 reporte (posiblemente el mismo que [D], plataforma distinta)
+//   [F] ProGamer_Mx99 en Roblox   — 1 reporte (tácticas similares a [D])
+//   [G] @tiktok_acoso8912 en TikTok — 2 reportes
+//   [H] @acoso.ig8912 en Instagram  — 1 reporte (posiblemente el mismo que [G])
+//   [I] 3111987654 en WhatsApp — 1 reporte (sextorsión crítica)
 
-console.log('\n🎯 Creando perfiles de agresores...')
+const SCENARIOS = [
+  // ── [A] @kevin_mx99 / Instagram ─────────────────────────────────────────────
+  {
+    label: '@kevin_mx99 / Instagram',
+    perfil: {
+      plataformas:     ['Instagram'],
+      tacticas:        ['love_bombing', 'solicitud_imagen', 'amenaza_difusion', 'secretismo'],
+      zonas_activas:   ['Tepic, Nayarit'],
+      identificadores: ['@kevin_mx99'],
+    },
+    alerta: { plataformas: ['Instagram'], zona_geografica: 'Tepic, Nayarit', num_victimas: 2, estado: 'en_investigacion' },
+    reportes: [
+      {
+        folio: 'A-DE7A91', hash_sha256: 'sha256:de7a91b2c3d4e5f6a7b8c9d0e1f2a3b4',
+        plataforma: 'Instagram', tipo: 'sextorsion', tipo_reporte: 'legal',
+        patrones: ['love_bombing', 'solicitud_imagen', 'amenaza_difusion'],
+        perfil_agresor: { plataformas: ['Instagram'], identificadores: ['@kevin_mx99'], telefono: null, pais_estimado: 'MX', tacticas: ['love_bombing', 'solicitud_imagen', 'amenaza_difusion'], descripcion_libre: 'Se presentó como estudiante de preparatoria' },
+        adulto_al_tanto: true, estado: 'procesado',
+      },
+      {
+        folio: 'A-8B3C1E', hash_sha256: 'sha256:8b3c1ea2b3c4d5e6f7a8b9c0d1e2f3a4',
+        plataforma: 'Instagram', tipo: 'sextorsion', tipo_reporte: 'privado',
+        patrones: ['love_bombing', 'solicitud_imagen'],
+        perfil_agresor: { plataformas: ['Instagram'], identificadores: ['@kevin_mx99'], telefono: null, pais_estimado: 'MX', tacticas: ['love_bombing', 'solicitud_imagen'], descripcion_libre: null },
+        adulto_al_tanto: null, estado: 'nuevo',
+      },
+    ],
+  },
 
-const PROFILE_DEFS = [
+  // ── [B] 3311234567 / WhatsApp ────────────────────────────────────────────────
   {
-    text: 'Agresor activo en Instagram y WhatsApp. Usa love bombing, solicita fotos íntimas y amenaza con difundirlas. Contacta a jóvenes de 13 a 17 años en zona Tepic, Nayarit.',
-    plataformas:   ['Instagram', 'WhatsApp'],
-    tacticas:      ['love_bombing', 'secretismo', 'solicitud_imagen', 'amenaza_difusion'],
-    horarios:      { franjas: [{ dias_semana: [1,2,3,4,5], hora_inicio: '15:00', hora_fin: '22:00' }], zona_horaria_estimada: 'America/Mexico_City', hora_pico: '20:00' },
-    nivel_riesgo:  'alto',
-    num_reportes:  4,
+    label: '3311234567 / WhatsApp',
+    perfil: {
+      plataformas:     ['WhatsApp'],
+      tacticas:        ['solicitud_imagen', 'amenaza_difusion', 'secretismo'],
+      zonas_activas:   ['Tepic, Nayarit'],
+      identificadores: ['3311234567'],
+    },
+    alerta: { plataformas: ['WhatsApp'], zona_geografica: 'Tepic, Nayarit', num_victimas: 1, estado: 'nueva' },
+    reportes: [
+      {
+        folio: 'A-4F2B3C', hash_sha256: 'sha256:4f2b3ca9b8c7d6e5f4a3b2c1d0e9f8a7',
+        plataforma: 'WhatsApp', tipo: 'sextorsion', tipo_reporte: 'privado',
+        patrones: ['solicitud_imagen', 'amenaza_difusion', 'secretismo'],
+        perfil_agresor: { plataformas: ['WhatsApp'], identificadores: ['3311234567'], telefono: null, pais_estimado: 'MX', tacticas: ['solicitud_imagen', 'amenaza_difusion'], descripcion_libre: null },
+        adulto_al_tanto: null, estado: 'en_revision',
+      },
+    ],
   },
+
+  // ── [C] @kevsports_oficial / Instagram ──────────────────────────────────────
   {
-    text: 'Depredador en Roblox y Discord. Se hace pasar por jugador de la misma edad. Ofrece regalos virtuales y pide secretismo para aislar a sus víctimas. Patrón de grooming prolongado en Bahía de Banderas.',
-    plataformas:   ['Roblox', 'Discord'],
-    tacticas:      ['love_bombing', 'aislamiento', 'secretismo', 'regalos_virtuales'],
-    horarios:      { franjas: [{ dias_semana: [6,0], hora_inicio: '10:00', hora_fin: '23:00' }], zona_horaria_estimada: 'America/Mexico_City', hora_pico: '16:00' },
-    nivel_riesgo:  'alto',
-    num_reportes:  2,
+    label: '@kevsports_oficial / Instagram',
+    perfil: {
+      plataformas:     ['Instagram'],
+      tacticas:        ['solicitud_imagen', 'amenaza_difusion', 'presion'],
+      zonas_activas:   ['Tepic, Nayarit'],
+      identificadores: ['@kevsports_oficial'],
+    },
+    alerta: { plataformas: ['Instagram'], zona_geografica: 'Tepic, Nayarit', num_victimas: 2, estado: 'nueva' },
+    reportes: [
+      {
+        folio: 'A-9C4D2F', hash_sha256: 'sha256:9c4d2fa1b2c3d4e5f6a7b8c9d0e1f2a3',
+        plataforma: 'Instagram', tipo: 'sextorsion', tipo_reporte: 'legal',
+        patrones: ['solicitud_imagen', 'amenaza_difusion', 'presion'],
+        perfil_agresor: { plataformas: ['Instagram'], identificadores: ['@kevsports_oficial'], telefono: null, pais_estimado: 'MX', tacticas: ['solicitud_imagen', 'amenaza_difusion', 'presion'], descripcion_libre: 'Dice ser fotógrafo de modelos' },
+        adulto_al_tanto: true, estado: 'nuevo',
+      },
+      {
+        folio: 'A-5E7F9A', hash_sha256: 'sha256:5e7f9ab1c2d3e4f5a6b7c8d9e0f1a2b3',
+        plataforma: 'Instagram', tipo: 'sextorsion', tipo_reporte: 'privado',
+        patrones: ['solicitud_imagen', 'secretismo'],
+        perfil_agresor: { plataformas: ['Instagram'], identificadores: ['@kevsports_oficial'], telefono: null, pais_estimado: 'MX', tacticas: ['solicitud_imagen', 'secretismo'], descripcion_libre: null },
+        adulto_al_tanto: null, estado: 'nuevo',
+      },
+    ],
   },
+
+  // ── [D] xXDarkXx1234 / Roblox ───────────────────────────────────────────────
   {
-    text: 'Acosador en TikTok e Instagram. Envía mensajes hostiles, insultos y presiona emocionalmente desde múltiples cuentas falsas. Reportado en Bahía de Banderas y Compostela, Nayarit.',
-    plataformas:   ['TikTok', 'Instagram'],
-    tacticas:      ['presion', 'manipulacion_emocional', 'multiple_cuentas'],
-    horarios:      { franjas: [{ dias_semana: [0,1,2,3,4,5,6], hora_inicio: '18:00', hora_fin: '01:00' }], zona_horaria_estimada: 'America/Mexico_City', hora_pico: '22:00' },
-    nivel_riesgo:  'medio',
-    num_reportes:  3,
+    label: 'xXDarkXx1234 / Roblox',
+    perfil: {
+      plataformas:     ['Roblox'],
+      tacticas:        ['love_bombing', 'aislamiento', 'secretismo'],
+      zonas_activas:   ['Bahía de Banderas, Nayarit'],
+      identificadores: ['xXDarkXx1234'],
+    },
+    alerta: { plataformas: ['Roblox'], zona_geografica: 'Bahía de Banderas, Nayarit', num_victimas: 1, estado: 'en_investigacion' },
+    reportes: [
+      {
+        folio: 'A-7C8E2D', hash_sha256: 'sha256:7c8e2d1a0b9f8e7d6c5b4a3f2e1d0c9b',
+        plataforma: 'Roblox', tipo: 'grooming', tipo_reporte: 'legal',
+        patrones: ['love_bombing', 'aislamiento', 'secretismo'],
+        perfil_agresor: { plataformas: ['Roblox'], identificadores: ['xXDarkXx1234'], telefono: null, pais_estimado: 'MX', tacticas: ['love_bombing', 'aislamiento', 'secretismo'], descripcion_libre: 'Afirmaba tener 14 años' },
+        adulto_al_tanto: true, estado: 'procesado',
+      },
+    ],
+  },
+
+  // ── [E] darkgamer#8821 / Discord ─────────────────────────────────────────────
+  {
+    label: 'darkgamer#8821 / Discord',
+    perfil: {
+      plataformas:     ['Discord'],
+      tacticas:        ['love_bombing', 'secretismo', 'aislamiento'],
+      zonas_activas:   ['Bahía de Banderas, Nayarit'],
+      identificadores: ['darkgamer#8821'],
+    },
+    alerta: { plataformas: ['Discord'], zona_geografica: 'Bahía de Banderas, Nayarit', num_victimas: 1, estado: 'nueva' },
+    reportes: [
+      {
+        folio: 'A-2F4A8C', hash_sha256: 'sha256:2f4a8c1b2c3d4e5f6a7b8c9d0e1f2a3b',
+        plataforma: 'Discord', tipo: 'grooming', tipo_reporte: 'privado',
+        patrones: ['love_bombing', 'secretismo', 'aislamiento'],
+        perfil_agresor: { plataformas: ['Discord'], identificadores: ['darkgamer#8821'], telefono: null, pais_estimado: 'MX', tacticas: ['love_bombing', 'secretismo'], descripcion_libre: 'Voz de adulto en llamadas de Discord' },
+        adulto_al_tanto: null, estado: 'nuevo',
+      },
+    ],
+  },
+
+  // ── [F] ProGamer_Mx99 / Roblox ───────────────────────────────────────────────
+  {
+    label: 'ProGamer_Mx99 / Roblox',
+    perfil: {
+      plataformas:     ['Roblox'],
+      tacticas:        ['love_bombing', 'aislamiento', 'secretismo'],
+      zonas_activas:   ['Xalisco, Nayarit'],
+      identificadores: ['ProGamer_Mx99'],
+    },
+    alerta: { plataformas: ['Roblox'], zona_geografica: 'Xalisco, Nayarit', num_victimas: 1, estado: 'nueva' },
+    reportes: [
+      {
+        folio: 'A-3B6D0E', hash_sha256: 'sha256:3b6d0ea1b2c3d4e5f6a7b8c9d0e1f2a3',
+        plataforma: 'Roblox', tipo: 'grooming', tipo_reporte: 'legal',
+        patrones: ['love_bombing', 'aislamiento', 'secretismo'],
+        perfil_agresor: { plataformas: ['Roblox'], identificadores: ['ProGamer_Mx99'], telefono: null, pais_estimado: 'MX', tacticas: ['love_bombing', 'aislamiento'], descripcion_libre: 'Ofrece items gratis para iniciar contacto' },
+        adulto_al_tanto: true, estado: 'nuevo',
+      },
+    ],
+  },
+
+  // ── [G] @tiktok_acoso8912 / TikTok ───────────────────────────────────────────
+  {
+    label: '@tiktok_acoso8912 / TikTok',
+    perfil: {
+      plataformas:     ['TikTok'],
+      tacticas:        ['presion', 'aislamiento'],
+      zonas_activas:   ['Compostela, Nayarit'],
+      identificadores: ['@tiktok_acoso8912'],
+    },
+    alerta: { plataformas: ['TikTok'], zona_geografica: 'Compostela, Nayarit', num_victimas: 2, estado: 'nueva' },
+    reportes: [
+      {
+        folio: 'A-1A9F5B', hash_sha256: 'sha256:1a9f5bc2d3e4f5a6b7c8d9e0f1a2b3c4',
+        plataforma: 'TikTok', tipo: 'acoso', tipo_reporte: 'privado',
+        patrones: ['presion', 'aislamiento'],
+        perfil_agresor: { plataformas: ['TikTok'], identificadores: ['@tiktok_acoso8912'], telefono: null, pais_estimado: 'MX', tacticas: ['presion', 'aislamiento'], descripcion_libre: null },
+        adulto_al_tanto: null, estado: 'nuevo',
+      },
+      {
+        folio: 'A-9E1C7B', hash_sha256: 'sha256:9e1c7b2a3b4c5d6e7f8a9b0c1d2e3f4a',
+        plataforma: 'TikTok', tipo: 'acoso', tipo_reporte: 'privado',
+        patrones: ['presion', 'aislamiento'],
+        perfil_agresor: { plataformas: ['TikTok'], identificadores: ['@tiktok_acoso8912'], telefono: null, pais_estimado: 'MX', tacticas: ['presion', 'aislamiento'], descripcion_libre: null },
+        adulto_al_tanto: null, estado: 'nuevo',
+      },
+    ],
+  },
+
+  // ── [H] @acoso.ig8912 / Instagram ────────────────────────────────────────────
+  {
+    label: '@acoso.ig8912 / Instagram',
+    perfil: {
+      plataformas:     ['Instagram'],
+      tacticas:        ['presion', 'aislamiento'],
+      zonas_activas:   ['Compostela, Nayarit'],
+      identificadores: ['@acoso.ig8912'],
+    },
+    alerta: { plataformas: ['Instagram'], zona_geografica: 'Compostela, Nayarit', num_victimas: 1, estado: 'nueva' },
+    reportes: [
+      {
+        folio: 'A-6D3A0F', hash_sha256: 'sha256:6d3a0fb1c2d3e4f5a6b7c8d9e0f1a2b3',
+        plataforma: 'Instagram', tipo: 'acoso', tipo_reporte: 'legal',
+        patrones: ['presion', 'aislamiento'],
+        perfil_agresor: { plataformas: ['Instagram'], identificadores: ['@acoso.ig8912'], telefono: null, pais_estimado: 'MX', tacticas: ['presion'], descripcion_libre: 'Cuenta secundaria sospechosa' },
+        adulto_al_tanto: true, estado: 'nuevo',
+      },
+    ],
+  },
+
+  // ── [I] 3111987654 / WhatsApp ────────────────────────────────────────────────
+  {
+    label: '3111987654 / WhatsApp',
+    perfil: {
+      plataformas:     ['WhatsApp'],
+      tacticas:        ['amenaza_difusion', 'presion', 'solicitud_imagen'],
+      zonas_activas:   ['Tepic, Nayarit'],
+      identificadores: ['3111987654'],
+    },
+    alerta: { plataformas: ['WhatsApp'], zona_geografica: 'Tepic, Nayarit', num_victimas: 1, estado: 'nueva' },
+    reportes: [
+      {
+        folio: 'A-C2E4F7', hash_sha256: 'sha256:c2e4f7a1b2c3d4e5f6a7b8c9d0e1f2a3',
+        plataforma: 'WhatsApp', tipo: 'sextorsion', tipo_reporte: 'legal',
+        patrones: ['amenaza_difusion', 'presion', 'solicitud_imagen'],
+        perfil_agresor: { plataformas: ['WhatsApp'], identificadores: ['3111987654'], telefono: '+52 311 198 7654', pais_estimado: 'MX', tacticas: ['amenaza_difusion', 'presion', 'solicitud_imagen'], descripcion_libre: 'Número con lada Tepic (311)' },
+        adulto_al_tanto: true, estado: 'nuevo',
+      },
+    ],
   },
 ]
 
-const perfilIds = []
-for (const p of PROFILE_DEFS) {
-  process.stdout.write(`  Generando embedding: "${p.text.slice(0, 55)}…" `)
-  const vector = await embed(p.text)
+// ── Step 2: Perfiles, alertas y reportes ──────────────────────────────────────
+
+console.log('\n🎯 Creando perfiles, alertas y reportes...')
+
+const createdPerfiles = []
+
+for (const scenario of SCENARIOS) {
+  const { label, perfil, alerta, reportes } = scenario
+
+  process.stdout.write(`  Embedding ${label}… `)
+  const embText = `plataforma: ${perfil.plataformas[0]}. tacticas: ${perfil.tacticas.join(', ')}. identificador: ${perfil.identificadores[0]}`
+  const vector = await embed(embText)
   process.stdout.write('✓\n')
 
-  const { data, error } = await supabase
+  const { data: perfilData, error: perfilErr } = await supabase
     .from('perfiles_agresores')
-    .insert({ patron_vector: vector, plataformas: p.plataformas, tacticas: p.tacticas, horarios: p.horarios, nivel_riesgo: p.nivel_riesgo, num_reportes: p.num_reportes })
+    .insert({
+      patron_vector:   vector,
+      plataformas:     perfil.plataformas,
+      tacticas:        perfil.tacticas,
+      nivel_riesgo:    deriveRiesgo(perfil.tacticas),
+      zonas_activas:   perfil.zonas_activas,
+      identificadores: perfil.identificadores,
+      num_reportes:    reportes.length,
+    })
     .select('id')
     .single()
 
-  if (error) fail(`perfil ${p.plataformas.join('+')}`, error)
-  else { ok(`perfil ${p.plataformas.join('+')} → ${data.id.slice(0, 8)}`); perfilIds.push(data.id) }
+  if (perfilErr || !perfilData) { fail(`perfil ${label}`, perfilErr); continue }
+  ok(`perfil ${label} → ${perfilData.id.slice(0, 8)}`)
+
+  const { data: alertaData, error: alertaErr } = await supabase
+    .from('alertas')
+    .insert({
+      nivel_urgencia:  deriveUrgency(perfil.tacticas),
+      num_victimas:    alerta.num_victimas,
+      perfil_id:       perfilData.id,
+      plataformas:     alerta.plataformas,
+      zona_geografica: alerta.zona_geografica,
+      estado:          alerta.estado,
+    })
+    .select('id')
+    .single()
+
+  if (alertaErr || !alertaData) { fail(`alerta ${label}`, alertaErr); continue }
+  ok(`alerta → ${alertaData.id.slice(0, 8)}`)
+
+  for (const r of reportes) {
+    const { error: rErr } = await supabase.from('reportes_directos').insert({ ...r, alerta_id: alertaData.id })
+    if (rErr) fail(`reporte ${r.folio}`, rErr)
+    else ok(`reporte ${r.folio}`)
+  }
+
+  createdPerfiles.push({ id: perfilData.id, label })
 }
 
-// ── Step 3: Alertas ───────────────────────────────────────────────────────────
+// ── Step 3: Vinculaciones entre perfiles ──────────────────────────────────────
+//
+// Estas vinculaciones representan lo que el vector de similitud detectaría
+// automáticamente al crearse cada perfil en el flujo real.
+// El policía las ve en "Perfiles similares" y decide si confirmar o descartar.
+//
+//   [A] @kevin_mx99/Instagram   ↔ [B] 3311234567/WhatsApp    — posible mismo, distinta plataforma
+//   [A] @kevin_mx99/Instagram   ↔ [C] @kevsports/Instagram   — tácticas muy similares, misma plataforma
+//   [D] xXDarkXx/Roblox         ↔ [E] darkgamer/Discord      — posible mismo, distinta plataforma
+//   [D] xXDarkXx/Roblox         ↔ [F] ProGamer/Roblox        — tácticas idénticas, misma plataforma
+//   [G] tiktok_acoso/TikTok     ↔ [H] acoso.ig/Instagram     — posible mismo, distinta plataforma
 
-console.log('\n🚨 Creando alertas...')
+console.log('\n🔗 Creando vinculaciones entre perfiles...')
 
-const ALERTAS_DEF = [
-  { nivel_urgencia: 'critica',  num_victimas: 4, perfil_id: perfilIds[0], plataformas: ['Instagram','WhatsApp'], zona_geografica: 'Tepic, Nayarit',              horarios: PROFILE_DEFS[0].horarios, estado: 'en_investigacion' },
-  { nivel_urgencia: 'alta',     num_victimas: 2, perfil_id: perfilIds[0], plataformas: ['Instagram'],           zona_geografica: 'Tepic, Nayarit',              horarios: PROFILE_DEFS[0].horarios, estado: 'nueva'           },
-  { nivel_urgencia: 'alta',     num_victimas: 2, perfil_id: perfilIds[1], plataformas: ['Roblox','Discord'],    zona_geografica: 'Bahía de Banderas, Nayarit',  horarios: PROFILE_DEFS[1].horarios, estado: 'en_investigacion' },
-  { nivel_urgencia: 'media',    num_victimas: 1, perfil_id: perfilIds[1], plataformas: ['Discord'],             zona_geografica: 'Xalisco, Nayarit',            horarios: PROFILE_DEFS[1].horarios, estado: 'nueva'           },
-  { nivel_urgencia: 'media',    num_victimas: 3, perfil_id: perfilIds[2], plataformas: ['TikTok','Instagram'],  zona_geografica: 'Bahía de Banderas, Nayarit',  horarios: PROFILE_DEFS[2].horarios, estado: 'nueva'           },
-  { nivel_urgencia: 'baja',     num_victimas: 1, perfil_id: perfilIds[2], plataformas: ['TikTok'],             zona_geografica: 'Compostela, Nayarit',         horarios: PROFILE_DEFS[2].horarios, estado: 'resuelta'        },
-]
-
-const alertaIds = []
-for (const a of ALERTAS_DEF) {
-  const { data, error } = await supabase.from('alertas').insert(a).select('id').single()
-  if (error) fail(`alerta ${a.nivel_urgencia}/${a.zona_geografica}`, error)
-  else { ok(`alerta ${a.nivel_urgencia} — ${a.zona_geografica} → ${data.id.slice(0, 8)}`); alertaIds.push(data.id) }
-}
-
-// ── Step 4: Reportes directos ─────────────────────────────────────────────────
-
-console.log('\n📄 Creando reportes directos...')
-
-const REPORTES_DEF = [
-  {
-    folio: 'A-DE7A91', hash_sha256: 'sha256:de7a91b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0',
-    plataforma: 'Instagram', tipo: 'sextorsion', tipo_reporte: 'legal',
-    patrones: ['love_bombing','solicitud_imagen','amenaza_difusion'],
-    perfil_agresor: { plataformas: ['Instagram','WhatsApp'], identificadores: ['@kevin_mx99','3112345678'], telefono: null, pais_estimado: 'MX', tacticas: ['love_bombing','solicitud_imagen','amenaza_difusion'], descripcion_libre: 'Se presentó como estudiante de preparatoria' },
-    adulto_al_tanto: true, alerta_id: alertaIds[0], estado: 'procesado',
-  },
-  {
-    folio: 'A-4F2B3C', hash_sha256: 'sha256:4f2b3ca9b8c7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e1',
-    plataforma: 'Instagram', tipo: 'sextorsion', tipo_reporte: 'privado',
-    patrones: ['solicitud_imagen','amenaza_difusion','secretismo'],
-    perfil_agresor: { plataformas: ['Instagram'], identificadores: ['@kevsports_oficial'], telefono: null, pais_estimado: 'MX', tacticas: ['solicitud_imagen','amenaza_difusion'], descripcion_libre: null },
-    adulto_al_tanto: null, alerta_id: alertaIds[0], estado: 'en_revision',
-  },
-  {
-    folio: 'A-7C8E2D', hash_sha256: 'sha256:7c8e2d1a0b9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5f4e3',
-    plataforma: 'Roblox', tipo: 'grooming', tipo_reporte: 'legal',
-    patrones: ['love_bombing','aislamiento','secretismo'],
-    perfil_agresor: { plataformas: ['Roblox','Discord'], identificadores: ['xXDarkXx1234','darkgamer#8821'], telefono: null, pais_estimado: 'MX', tacticas: ['love_bombing','aislamiento','secretismo'], descripcion_libre: 'Afirmaba tener 14 años, voz de adulto en Discord' },
-    adulto_al_tanto: true, alerta_id: alertaIds[2], estado: 'nuevo',
-  },
-  {
-    folio: 'A-1A9F5B', hash_sha256: 'sha256:1a9f5bc2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0',
-    plataforma: 'TikTok', tipo: 'acoso', tipo_reporte: 'privado',
-    patrones: ['presion','manipulacion_emocional'],
-    perfil_agresor: { plataformas: ['TikTok'], identificadores: ['@tiktok_acoso891234'], telefono: null, pais_estimado: 'MX', tacticas: ['presion','manipulacion_emocional'], descripcion_libre: null },
-    adulto_al_tanto: null, alerta_id: alertaIds[4], estado: 'nuevo',
-  },
-  {
-    folio: 'A-3B6D0E', hash_sha256: 'sha256:3b6d0ea1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9',
-    plataforma: 'WhatsApp', tipo: 'sextorsion', tipo_reporte: 'legal',
-    patrones: ['amenaza_difusion','presion','solicitud_imagen'],
-    perfil_agresor: { plataformas: ['WhatsApp','Instagram'], identificadores: ['5531234567'], telefono: '+52 55 3123 4567', pais_estimado: 'MX', tacticas: ['amenaza_difusion','presion'], descripcion_libre: 'Número con lada CDMX, posible VoIP' },
-    adulto_al_tanto: true, alerta_id: null, estado: 'nuevo',
-  },
-  {
-    folio: 'A-2F4A8C', hash_sha256: 'sha256:2f4a8c1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f',
-    plataforma: 'Discord', tipo: 'grooming', tipo_reporte: 'privado',
-    patrones: ['love_bombing','secretismo','aislamiento'],
-    perfil_agresor: { plataformas: ['Roblox','Discord'], identificadores: ['DarkGamer#5512'], telefono: null, pais_estimado: 'MX', tacticas: ['love_bombing','secretismo'], descripcion_libre: null },
-    adulto_al_tanto: null, alerta_id: alertaIds[3], estado: 'nuevo',
-  },
-  {
-    folio: 'A-9E1C7B', hash_sha256: 'sha256:9e1c7b2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0',
-    plataforma: 'TikTok', tipo: 'acoso', tipo_reporte: 'privado',
-    patrones: ['presion','manipulacion_emocional','multiple_cuentas'],
-    perfil_agresor: { plataformas: ['TikTok','Instagram'], identificadores: ['@tiktok_user9871'], telefono: null, pais_estimado: 'MX', tacticas: ['presion','manipulacion_emocional'], descripcion_libre: null },
-    adulto_al_tanto: null, alerta_id: alertaIds[5], estado: 'nuevo',
-  },
-]
-
-const reporteIds = []
-for (const r of REPORTES_DEF) {
-  const { data, error } = await supabase.from('reportes_directos').insert(r).select('id').single()
-  if (error) fail(`reporte ${r.folio}`, error)
-  else { ok(`reporte ${r.folio} (${r.tipo}/${r.tipo_reporte}) → ${data.id.slice(0, 8)}`); reporteIds.push(data.id) }
-}
-
-// ── Step 5: Vinculaciones ─────────────────────────────────────────────────────
-
-console.log('\n🔗 Creando vinculaciones...')
+const idx = (label) => createdPerfiles.findIndex(p => p.label === label)
 
 const VINCS = [
-  { alerta_id: alertaIds[0], reporte_id: reporteIds[0], similitud_score: 0.94 },
-  { alerta_id: alertaIds[0], reporte_id: reporteIds[1], similitud_score: 0.87 },
-  { alerta_id: alertaIds[2], reporte_id: reporteIds[2], similitud_score: 0.91 },
-  { alerta_id: alertaIds[4], reporte_id: reporteIds[3], similitud_score: 0.83 },
+  { a: '@kevin_mx99 / Instagram',    b: '3311234567 / WhatsApp',        score: 0.84 },
+  { a: '@kevin_mx99 / Instagram',    b: '@kevsports_oficial / Instagram', score: 0.88 },
+  { a: 'xXDarkXx1234 / Roblox',     b: 'darkgamer#8821 / Discord',      score: 0.83 },
+  { a: 'xXDarkXx1234 / Roblox',     b: 'ProGamer_Mx99 / Roblox',        score: 0.79 },
+  { a: '@tiktok_acoso8912 / TikTok', b: '@acoso.ig8912 / Instagram',     score: 0.76 },
 ]
 
 for (const v of VINCS) {
-  const { error } = await supabase.from('vinculaciones').insert(v)
-  if (error && !error.message.includes('unique')) fail(`vinculacion`, error)
-  else ok(`similitud=${v.similitud_score} — ${v.alerta_id.slice(0, 8)} ↔ ${v.reporte_id.slice(0, 8)}`)
+  const idxA = idx(v.a), idxB = idx(v.b)
+  if (idxA === -1 || idxB === -1) { console.warn(`  ⚠ No encontrado: ${v.a} o ${v.b}`); continue }
+  const [a, b] = [createdPerfiles[idxA].id, createdPerfiles[idxB].id].sort()
+  const { error } = await supabase.from('vinculaciones_perfiles').insert({
+    perfil_a_id: a, perfil_b_id: b, similitud_score: v.score,
+    confirmada: false, descartada: false,
+  })
+  if (error) fail(`vinculacion ${v.a} ↔ ${v.b}`, error)
+  else ok(`${v.a} ↔ ${v.b} (${v.score})`)
 }
 
 // ── Summary ───────────────────────────────────────────────────────────────────
@@ -256,6 +452,8 @@ for (const v of VINCS) {
 console.log('\n✅ Seed completado\n')
 console.log('Cuentas de agentes:')
 for (const a of AGENTS) console.log(`  ${a.email}  /  ${a.password}`)
-console.log('\nFolios de demo (portal policía):')
-for (const r of REPORTES_DEF) console.log(`  ${r.folio}  —  ${r.tipo} / ${r.tipo_reporte} / ${r.estado}`)
+console.log(`\n${createdPerfiles.length} perfiles creados (1 plataforma cada uno):`)
+for (const p of createdPerfiles) console.log(`  ${p.label}`)
+console.log('\nVinculaciones sugeridas (pendientes de revisión policial):')
+for (const v of VINCS) console.log(`  ${v.a} ↔ ${v.b}  (${v.score})`)
 console.log()

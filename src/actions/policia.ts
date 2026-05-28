@@ -392,6 +392,7 @@ export interface PerfilSignalData {
   nivelRiesgo: string
   plataformas: string[]
   zonasActivas: string[]
+  identificadores: string[]
   numReportes: number
   createdAt: string
 }
@@ -413,7 +414,7 @@ export async function getAlertasInteligencia(): Promise<AlertasInteligenciaData>
   const [reportesRes, alertasRes, perfilesRes] = await Promise.all([
     supabase.from('reportes_directos').select('plataforma, created_at').gte('created_at', hace14d),
     supabase.from('alertas').select('zona_geografica, plataformas, created_at').gte('created_at', hace7d).not('zona_geografica', 'is', null),
-    supabase.from('perfiles_agresores').select('id, nivel_riesgo, plataformas, zonas_activas, num_reportes, created_at'),
+    supabase.from('perfiles_agresores').select('id, nivel_riesgo, plataformas, zonas_activas, identificadores, num_reportes, created_at'),
   ])
 
   // Platform surges: this week vs previous week
@@ -451,12 +452,13 @@ export async function getAlertasInteligencia(): Promise<AlertasInteligenciaData>
 
   // Profile signals
   const perfiles: PerfilSignalData[] = (perfilesRes.data ?? []).map((r) => ({
-    id:           r.id as string,
-    nivelRiesgo:  (r.nivel_riesgo as string)     ?? 'medio',
-    plataformas:  (r.plataformas as string[])    ?? [],
-    zonasActivas: (r.zonas_activas as string[])  ?? [],
-    numReportes:  (r.num_reportes as number)     ?? 0,
-    createdAt:    r.created_at as string,
+    id:              r.id as string,
+    nivelRiesgo:     (r.nivel_riesgo as string)      ?? 'medio',
+    plataformas:     (r.plataformas as string[])     ?? [],
+    zonasActivas:    (r.zonas_activas as string[])   ?? [],
+    identificadores: (r.identificadores as string[]) ?? [],
+    numReportes:     (r.num_reportes as number)      ?? 0,
+    createdAt:       r.created_at as string,
   }))
 
   const nuevosAltoRiesgo = perfiles
@@ -465,7 +467,7 @@ export async function getAlertasInteligencia(): Promise<AlertasInteligenciaData>
     .slice(0, 5)
 
   const reincidentes = perfiles
-    .filter((p) => p.numReportes >= 3)
+    .filter((p) => p.numReportes >= 2)
     .sort((a, b) => b.numReportes - a.numReportes)
     .slice(0, 5)
 
@@ -475,9 +477,10 @@ export async function getAlertasInteligencia(): Promise<AlertasInteligenciaData>
 export async function getEstadisticas(): Promise<EstadisticasData> {
   const supabase = await createClient()
 
-  const [alertasRes, reportesRes] = await Promise.all([
+  const [alertasRes, reportesRes, perfilesRes] = await Promise.all([
     supabase.from('alertas').select('zona_geografica').not('estado', 'eq', 'archivada'),
-    supabase.from('reportes_directos').select('tipo_reporte, created_at, plataforma'),
+    supabase.from('reportes_directos').select('tipo_reporte, created_at, plataforma, patrones'),
+    supabase.from('perfiles_agresores').select('nivel_riesgo'),
   ])
 
   // Count alertas per zone (skip nulls)
@@ -515,5 +518,28 @@ export async function getEstadisticas(): Promise<EstadisticasData> {
     .sort((a, b) => b.count - a.count)
     .slice(0, 6)
 
-  return { zonaStats, weeklyReportes, plataformaStats }
+  // Risk level distribution across profiles
+  const riesgoOrder = ['critico', 'alto', 'medio', 'bajo']
+  const riesgoCounts: Record<string, number> = {}
+  for (const p of perfilesRes.data ?? []) {
+    const nivel = (p.nivel_riesgo as string) ?? 'medio'
+    riesgoCounts[nivel] = (riesgoCounts[nivel] ?? 0) + 1
+  }
+  const riesgoStats = riesgoOrder
+    .filter((n) => riesgoCounts[n])
+    .map((nivel) => ({ nivel, count: riesgoCounts[nivel] ?? 0 }))
+
+  // Tactic frequency across all reports
+  const tacticaCounts: Record<string, number> = {}
+  for (const r of reportesRes.data ?? []) {
+    for (const t of (r.patrones as string[]) ?? []) {
+      tacticaCounts[t] = (tacticaCounts[t] ?? 0) + 1
+    }
+  }
+  const tacticaStats = Object.entries(tacticaCounts)
+    .map(([tactica, count]) => ({ tactica, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 7)
+
+  return { zonaStats, weeklyReportes, plataformaStats, riesgoStats, tacticaStats }
 }

@@ -28,6 +28,8 @@ export interface EstadisticasData {
   zonaStats: { name: string; alerts: number }[]
   weeklyReportes: { day: string; privado: number; legal: number }[]
   plataformaStats: { name: string; count: number; pct: number }[]
+  riesgoStats: { nivel: string; count: number }[]
+  tacticaStats: { tactica: string; count: number }[]
 }
 
 export interface DashboardData {

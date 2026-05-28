@@ -103,30 +103,28 @@ export default function PerfilesPage() {
                             <span style={{ fontSize: '0.75rem', fontFamily: 'var(--font-body)', fontWeight: 600, color }}>{riskLabels[p.nivelRiesgo] ?? p.nivelRiesgo}</span>
                           </div>
                         </td>
-                        <td style={{ padding: '14px 16px' }}>
-                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.72rem', color: 'var(--color-text-tertiary)' }}>
-                            PER-{p.id.slice(0, 6).toUpperCase()}
-                          </span>
+                        <td style={{ padding: '14px 16px', maxWidth: 180 }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap' }}>
+                              PER-{p.id.slice(0, 6).toUpperCase()}
+                            </span>
+                            {p.identificadores.slice(0, 2).map((id) => (
+                              <span key={id} style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem', fontWeight: 600, color: '#3d5e81', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {id}
+                              </span>
+                            ))}
+                            {p.identificadores.length > 2 && (
+                              <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.68rem', color: 'var(--color-text-tertiary)' }}>+{p.identificadores.length - 2} más</span>
+                            )}
+                          </div>
                         </td>
                         <td style={{ padding: '14px 16px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: p.identificadores.length > 0 ? 4 : 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                             <Smartphone size={11} color="var(--color-text-tertiary)" />
                             <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
                               {p.plataformas.slice(0, 2).join(', ')}{p.plataformas.length > 2 ? ` +${p.plataformas.length - 2}` : ''}
                             </span>
                           </div>
-                          {p.identificadores.length > 0 && (
-                            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                              {p.identificadores.slice(0, 2).map((id) => (
-                                <span key={id} style={{ fontFamily: 'var(--font-mono)', fontSize: '0.68rem', background: '#f0f4f8', border: '1px solid #d1dce8', borderRadius: 4, padding: '1px 6px', color: '#3d5e81' }}>
-                                  {id}
-                                </span>
-                              ))}
-                              {p.identificadores.length > 2 && (
-                                <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.68rem', color: 'var(--color-text-tertiary)' }}>+{p.identificadores.length - 2}</span>
-                              )}
-                            </div>
-                          )}
                         </td>
                         <td style={{ padding: '14px 16px', maxWidth: 200 }}>
                           <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.78rem', color: 'var(--color-text-secondary)', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', display: 'block' }}>
@@ -190,7 +188,12 @@ export default function PerfilesPage() {
                       <div style={{ width: 8, height: 8, borderRadius: '50%', background: color }} />
                       <span style={{ fontSize: '0.72rem', fontWeight: 600, color, fontFamily: 'var(--font-body)' }}>{riskLabels[p.nivelRiesgo] ?? p.nivelRiesgo}</span>
                     </div>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.68rem', color: 'var(--color-text-tertiary)' }}>PER-{p.id.slice(0, 6).toUpperCase()}</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.62rem', color: 'var(--color-text-tertiary)' }}>PER-{p.id.slice(0, 6).toUpperCase()}</span>
+                      {p.identificadores[0] && (
+                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.72rem', fontWeight: 600, color: '#3d5e81' }}>{p.identificadores[0]}</span>
+                      )}
+                    </div>
                   </div>
                   <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.85rem', color: 'var(--color-text-primary)', marginBottom: 8, fontWeight: 500 }}>
                     {p.plataformas.join(' + ')} · {p.numReportes} {p.numReportes === 1 ? 'reporte' : 'reportes'}

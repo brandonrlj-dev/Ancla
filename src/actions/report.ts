@@ -72,6 +72,7 @@ async function getEmbedding(text: string): Promise<string> {
 
 function deriveUrgency(patterns: string[]): string {
   if (patterns.includes('amenaza_difusion')) return 'critica'
+  if (patterns.includes('solicitud_imagen') && patterns.length >= 2) return 'critica'
   if (patterns.length >= 2) return 'alta'
   if (patterns.length === 1) return 'media'
   return 'baja'
@@ -79,8 +80,10 @@ function deriveUrgency(patterns: string[]): string {
 
 function deriveRiesgo(patterns: string[]): string {
   if (patterns.includes('amenaza_difusion')) return 'critico'
+  if (patterns.includes('solicitud_imagen') && patterns.length >= 2) return 'critico'
   if (patterns.length >= 2) return 'alto'
-  return 'medio'
+  if (patterns.length === 1) return 'medio'
+  return 'bajo'
 }
 
 // ── Aggressor analysis ────────────────────────────────────────────────────────
@@ -100,34 +103,84 @@ async function analyzeAndLink(
   if (patterns.length === 0) return
 
   try {
-    const embeddingStr = await getEmbedding(buildAgressorText(plataforma, patterns, identificador))
+    let perfilId: string | null = null
 
-    // 1. Always create a new profile for this report
-    const { data: perfil, error: perfilErr } = await supabase
-      .from('perfiles_agresores')
-      .insert({
-        patron_vector:   embeddingStr,
-        plataformas:     [plataforma],
-        tacticas:        patterns,
-        nivel_riesgo:    deriveRiesgo(patterns),
-        zonas_activas:   municipio     ? [municipio]     : [],
-        identificadores: identificador ? [identificador] : [],
-      })
-      .select('id')
-      .single()
+    // 1. If platform is known and identifier provided, check for existing profile
+    if (identificador && plataforma !== 'Otra') {
+      const { data: existing } = await supabase
+        .from('perfiles_agresores')
+        .select('id, num_reportes, zonas_activas, tacticas, nivel_riesgo')
+        .contains('identificadores', [identificador])
+        .contains('plataformas', [plataforma])
+        .limit(1)
+        .maybeSingle()
 
-    if (perfilErr || !perfil) {
-      console.error('[analyzeAndLink] perfil insert failed:', perfilErr)
-      return
+      if (existing) {
+        perfilId = existing.id as string
+        const zonas        = (existing.zonas_activas as string[]) ?? []
+        const newZonas     = municipio && !zonas.includes(municipio) ? [...zonas, municipio] : zonas
+        const tacticasViejas = (existing.tacticas as string[]) ?? []
+        const tacticasCombinadas = [...new Set([...tacticasViejas, ...patterns])]
+        const nuevoRiesgo  = deriveRiesgo(tacticasCombinadas)
+        await supabase
+          .from('perfiles_agresores')
+          .update({
+            num_reportes: ((existing.num_reportes as number) ?? 0) + 1,
+            zonas_activas: newZonas,
+            tacticas:      tacticasCombinadas,
+            nivel_riesgo:  nuevoRiesgo,
+          })
+          .eq('id', perfilId)
+      }
     }
 
-    // 2. Always create a new alert linked to the profile
+    // 2. No existing profile — create one and search for vector-similar profiles
+    if (!perfilId) {
+      const embeddingStr = await getEmbedding(buildAgressorText(plataforma, patterns, identificador))
+
+      const { data: perfil, error: perfilErr } = await supabase
+        .from('perfiles_agresores')
+        .insert({
+          patron_vector:   embeddingStr,
+          plataformas:     [plataforma],
+          tacticas:        patterns,
+          nivel_riesgo:    deriveRiesgo(patterns),
+          zonas_activas:   municipio     ? [municipio]     : [],
+          identificadores: identificador ? [identificador] : [],
+          num_reportes:    1,
+        })
+        .select('id')
+        .single()
+
+      if (perfilErr || !perfil) {
+        console.error('[analyzeAndLink] perfil insert failed:', perfilErr)
+        return
+      }
+
+      perfilId = perfil.id
+
+      const { data: similares } = await supabase.rpc('buscar_perfil_similar', {
+        p_embedding:  embeddingStr,
+        p_plataforma: plataforma,
+      })
+
+      for (const sim of (similares ?? []) as SimilarRow[]) {
+        if (sim.perfil_id === perfilId) continue
+        const [a, b] = [perfilId, sim.perfil_id].sort()
+        await supabase.from('vinculaciones_perfiles').upsert(
+          { perfil_a_id: a, perfil_b_id: b, similitud_score: sim.similitud, confirmada: false, descartada: false },
+          { onConflict: 'perfil_a_id,perfil_b_id' },
+        )
+      }
+    }
+
+    // 3. Create a new alert linked to the profile (each report gets its own alert)
     const { data: alerta, error: alertaErr } = await supabase
       .from('alertas')
       .insert({
         nivel_urgencia:  deriveUrgency(patterns),
         num_victimas:    1,
-        perfil_id:       perfil.id,
+        perfil_id:       perfilId,
         plataformas:     [plataforma],
         zona_geografica: municipio ?? null,
         estado:          'nueva',
@@ -140,30 +193,14 @@ async function analyzeAndLink(
       return
     }
 
-    // 3. Link report to alert
+    // 4. Link report to alert
     await supabase
       .from('reportes_directos')
       .update({ alerta_id: alerta.id, updated_at: new Date().toISOString() })
       .eq('id', reporteId)
 
-    // 4. Find similar profiles using the platform threshold — police decides what to do
-    const { data: similares } = await supabase.rpc('buscar_perfil_similar', {
-      p_embedding:  embeddingStr,
-      p_plataforma: plataforma,
-    })
-
-    for (const sim of (similares ?? []) as SimilarRow[]) {
-      if (sim.perfil_id === perfil.id) continue  // skip self (just inserted)
-      const [a, b] = [perfil.id, sim.perfil_id].sort()
-      await supabase.from('vinculaciones_perfiles').upsert(
-        { perfil_a_id: a, perfil_b_id: b, similitud_score: sim.similitud, confirmada: false, descartada: false },
-        { onConflict: 'perfil_a_id,perfil_b_id' },
-      )
-    }
-
   } catch (err) {
     console.error('[analyzeAndLink] error, falling back to profileless alert:', err)
-    // Fallback: at least create an alert so police sees the report flagged
     await supabase.from('alertas').insert({
       nivel_urgencia:  deriveUrgency(patterns),
       num_victimas:    1,

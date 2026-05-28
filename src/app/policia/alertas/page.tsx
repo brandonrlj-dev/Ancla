@@ -210,7 +210,12 @@ export default function AlertasInteligenciaPage() {
                         <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.76rem', fontWeight: 700, color: 'var(--color-text-primary)' }}>
                           PER-{p.id.slice(0, 6).toUpperCase()}
                         </span>
-                        <span style={{ fontSize: '0.68rem', fontFamily: 'var(--font-body)', fontWeight: 600, color, padding: '1px 6px', borderRadius: 999, background: `${color}15`, border: `1px solid ${color}30` }}>
+                        {p.identificadores[0] && (
+                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.74rem', fontWeight: 600, color: '#3d5e81', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {p.identificadores[0]}
+                          </span>
+                        )}
+                        <span style={{ fontSize: '0.68rem', fontFamily: 'var(--font-body)', fontWeight: 600, color, padding: '1px 6px', borderRadius: 999, background: `${color}15`, border: `1px solid ${color}30`, flexShrink: 0 }}>
                           {riskLabels[p.nivelRiesgo]}
                         </span>
                       </div>
@@ -248,8 +253,15 @@ export default function AlertasInteligenciaPage() {
                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem', fontWeight: 700, color: '#f97316' }}>{p.numReportes}</span>
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.76rem', fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: 2 }}>
-                      PER-{p.id.slice(0, 6).toUpperCase()}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.76rem', fontWeight: 700, color: 'var(--color-text-primary)' }}>
+                        PER-{p.id.slice(0, 6).toUpperCase()}
+                      </span>
+                      {p.identificadores[0] && (
+                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.74rem', fontWeight: 600, color: '#3d5e81', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {p.identificadores[0]}
+                        </span>
+                      )}
                     </div>
                     <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.72rem', color: 'var(--color-text-tertiary)', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', display: 'block' }}>
                       {p.plataformas.join(', ')}{p.zonasActivas.length > 0 ? ` · ${p.zonasActivas[0]}` : ''}
