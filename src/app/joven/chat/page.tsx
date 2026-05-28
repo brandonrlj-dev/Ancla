@@ -91,10 +91,10 @@ export default function ChatAnaPage() {
 
         setAnaState('validating');
 
-        // Prioritize: regulacion > escudo > ancla (only one CTA at a time)
-        if (result.sugerirRegulacion) setActiveCta('regulacion');
-        else if (result.sugerirEscudo) setActiveCta('escudo');
+        // Prioritize: escudo > ancla > regulacion (action tools beat emotional support)
+        if (result.sugerirEscudo)      setActiveCta('escudo');
         else if (result.sugerirAncla)  setActiveCta('ancla');
+        else if (result.sugerirRegulacion) setActiveCta('regulacion');
 
       } catch {
         addChatMessage({
@@ -159,17 +159,25 @@ export default function ChatAnaPage() {
                   initial={{ height: 0, opacity: 0 }}
                   animate={{ height: 'auto', opacity: 1 }}
                   exit={{ height: 0, opacity: 0 }}
-                  style={{ background: '#fef2f2', borderBottom: '1px solid #fca5a5', padding: '10px 20px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}
+                  style={{ background: '#fef2f2', borderBottom: '1px solid #fca5a5', padding: '10px 20px 12px', display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0 }}
                 >
-                  <Phone size={14} color="#dc2626" />
-                  <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.82rem', color: '#dc2626', fontWeight: 600 }}>
-                    Línea de la Vida: 800 911 2000 &nbsp;·&nbsp; Emergencias: 911
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <Phone size={14} color="#dc2626" />
+                    <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.82rem', color: '#dc2626', fontWeight: 600 }}>
+                      Línea de la Vida: 800 911 2000 &nbsp;·&nbsp; Emergencias: 911
+                    </span>
+                    <button
+                      onClick={() => router.push('/joven/lineas')}
+                      style={{ marginLeft: 'auto', padding: '4px 12px', borderRadius: 999, background: '#dc2626', color: 'white', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '0.75rem', fontWeight: 600 }}
+                    >
+                      Ver todas
+                    </button>
+                  </div>
                   <button
-                    onClick={() => router.push('/joven/lineas')}
-                    style={{ marginLeft: 'auto', padding: '4px 12px', borderRadius: 999, background: '#dc2626', color: 'white', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '0.75rem', fontWeight: 600 }}
+                    onClick={() => router.push('/joven/regulacion')}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '9px 20px', borderRadius: 999, background: 'white', border: '1.5px solid #fca5a5', color: '#b91c1c', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '0.82rem', fontWeight: 600, width: '100%' }}
                   >
-                    Ver todas
+                    <ArrowRight size={14} /> Ejercicio de respiración para calmarte
                   </button>
                 </motion.div>
               )}
@@ -238,31 +246,73 @@ export default function ChatAnaPage() {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -6 }}
-                    style={{ display: 'flex', justifyContent: 'center', marginTop: 4 }}
+                    style={{ display: 'flex', justifyContent: 'flex-start', marginTop: 4 }}
                   >
                     {activeCta === 'escudo' && (
-                      <button
-                        onClick={() => router.push('/joven/escudo')}
-                        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 24px', borderRadius: 999, background: 'var(--color-calm-500)', color: 'white', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '0.9rem', fontWeight: 600, boxShadow: '0 4px 16px rgba(91,129,168,0.30)' }}
-                      >
-                        Analizar la situación <ArrowRight size={16} />
-                      </button>
+                      <div style={{ maxWidth: '85%', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <div style={{ padding: '12px 16px', borderRadius: '18px 18px 18px 4px', background: 'white', border: '1px solid var(--color-border-subtle)', boxShadow: 'var(--shadow-sm)', fontFamily: 'var(--font-body)', fontSize: '0.9rem', lineHeight: 1.6, color: 'var(--color-text-primary)' }}>
+                          Tengo una herramienta que puede ayudarte a entender si lo que describes es una señal de alerta. ¿Quieres intentarlo?
+                          <div style={{ marginTop: 6, paddingTop: 4, borderTop: '1px solid var(--color-border-subtle)', fontSize: '0.68rem', color: 'var(--color-text-tertiary)', fontStyle: 'italic' }}>— ANA</div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                          <button
+                            onClick={() => router.push('/joven/escudo')}
+                            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 18px', borderRadius: 999, background: 'var(--color-calm-500)', color: 'white', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '0.82rem', fontWeight: 600 }}
+                          >
+                            Analizar la situación <ArrowRight size={14} />
+                          </button>
+                          <button
+                            onClick={() => setActiveCta(null)}
+                            style={{ padding: '9px 18px', borderRadius: 999, background: 'transparent', color: 'var(--color-text-secondary)', border: '1.5px solid var(--color-border)', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '0.82rem' }}
+                          >
+                            No, seguir hablando
+                          </button>
+                        </div>
+                      </div>
                     )}
                     {activeCta === 'ancla' && (
-                      <button
-                        onClick={() => router.push('/joven/ancla')}
-                        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 24px', borderRadius: 999, background: 'var(--color-calm-500)', color: 'white', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '0.9rem', fontWeight: 600, boxShadow: '0 4px 16px rgba(91,129,168,0.30)' }}
-                      >
-                        Quiero reportarlo <ArrowRight size={16} />
-                      </button>
+                      <div style={{ maxWidth: '85%', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <div style={{ padding: '12px 16px', borderRadius: '18px 18px 18px 4px', background: 'white', border: '1px solid var(--color-border-subtle)', boxShadow: 'var(--shadow-sm)', fontFamily: 'var(--font-body)', fontSize: '0.9rem', lineHeight: 1.6, color: 'var(--color-text-primary)' }}>
+                          Puedo ayudarte a documentar lo que pasó y enviarlo a un equipo especializado. ¿Quieres hacerlo?
+                          <div style={{ marginTop: 6, paddingTop: 4, borderTop: '1px solid var(--color-border-subtle)', fontSize: '0.68rem', color: 'var(--color-text-tertiary)', fontStyle: 'italic' }}>— ANA</div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                          <button
+                            onClick={() => router.push('/joven/ancla')}
+                            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 18px', borderRadius: 999, background: 'var(--color-calm-500)', color: 'white', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '0.82rem', fontWeight: 600 }}
+                          >
+                            Quiero reportarlo <ArrowRight size={14} />
+                          </button>
+                          <button
+                            onClick={() => setActiveCta(null)}
+                            style={{ padding: '9px 18px', borderRadius: 999, background: 'transparent', color: 'var(--color-text-secondary)', border: '1.5px solid var(--color-border)', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '0.82rem' }}
+                          >
+                            No, seguir hablando
+                          </button>
+                        </div>
+                      </div>
                     )}
                     {activeCta === 'regulacion' && (
-                      <button
-                        onClick={() => router.push('/joven/regulacion')}
-                        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 24px', borderRadius: 999, background: 'var(--color-sage-500)', color: 'white', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '0.9rem', fontWeight: 600, boxShadow: '0 4px 16px rgba(80,120,80,0.25)' }}
-                      >
-                        Técnica de respiración <ArrowRight size={16} />
-                      </button>
+                      <div style={{ alignSelf: 'flex-start', maxWidth: '85%', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <div style={{ padding: '12px 16px', borderRadius: '18px 18px 18px 4px', background: 'white', border: '1px solid var(--color-border-subtle)', boxShadow: 'var(--shadow-sm)', fontFamily: 'var(--font-body)', fontSize: '0.9rem', lineHeight: 1.6, color: 'var(--color-text-primary)' }}>
+                          Oye, entiendo cómo te sientes. Si lo necesitas, aquí hay métodos que pueden ayudarte a tranquilizarte un poco antes de seguir.
+                          <div style={{ marginTop: 6, paddingTop: 4, borderTop: '1px solid var(--color-border-subtle)', fontSize: '0.68rem', color: 'var(--color-text-tertiary)', fontStyle: 'italic' }}>— ANA</div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                          <button
+                            onClick={() => router.push('/joven/regulacion')}
+                            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 18px', borderRadius: 999, background: 'var(--color-sage-500)', color: 'white', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '0.82rem', fontWeight: 600 }}
+                          >
+                            Ver métodos para calmarme <ArrowRight size={14} />
+                          </button>
+                          <button
+                            onClick={() => setActiveCta(null)}
+                            style={{ padding: '9px 18px', borderRadius: 999, background: 'transparent', color: 'var(--color-text-secondary)', border: '1.5px solid var(--color-border)', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '0.82rem' }}
+                          >
+                            No, seguir hablando
+                          </button>
+                        </div>
+                      </div>
                     )}
                   </motion.div>
                 )}
@@ -278,13 +328,13 @@ export default function ChatAnaPage() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                disabled={isPending}
-                placeholder={isPending ? 'ANA está respondiendo…' : 'Escribe algo…'}
-                style={{ flex: 1, padding: '10px 16px', borderRadius: 999, border: '1.5px solid var(--color-border)', background: isPending ? 'var(--color-gray-100)' : 'var(--color-gray-50)', fontFamily: 'var(--font-body)', fontSize: '0.9rem', outline: 'none', color: 'var(--color-text-primary)', transition: 'background 200ms' }}
+                disabled={isPending || isEmergency}
+                placeholder={isEmergency ? 'Usa los recursos de arriba para recibir ayuda.' : isPending ? 'ANA está respondiendo…' : 'Escribe algo…'}
+                style={{ flex: 1, padding: '10px 16px', borderRadius: 999, border: '1.5px solid var(--color-border)', background: isPending || isEmergency ? 'var(--color-gray-100)' : 'var(--color-gray-50)', fontFamily: 'var(--font-body)', fontSize: '0.9rem', outline: 'none', color: 'var(--color-text-primary)', transition: 'background 200ms' }}
               />
               <button
                 onClick={handleSend}
-                disabled={!input.trim() || isPending}
+                disabled={!input.trim() || isPending || isEmergency}
                 style={{ width: 38, height: 38, borderRadius: '50%', background: input.trim() && !isPending ? 'var(--color-calm-500)' : 'var(--color-gray-200)', border: 'none', cursor: input.trim() && !isPending ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'background 200ms' }}
               >
                 <Send size={16} color={input.trim() && !isPending ? 'white' : 'var(--color-text-tertiary)'} />
