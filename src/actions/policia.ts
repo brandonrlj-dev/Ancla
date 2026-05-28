@@ -262,14 +262,22 @@ export async function descartarVinculacion(vinculacionId: string): Promise<void>
 
 const PERFIL_SELECT = 'id, plataformas, tacticas, zonas_activas, identificadores, nivel_riesgo, num_reportes, created_at'
 
+const RIESGO_ORDER: Record<string, number> = { critico: 0, alto: 1, medio: 2, bajo: 3 }
+
 export async function getPerfiles(): Promise<PerfilAgresorRow[]> {
   const supabase = await createClient()
   const { data } = await supabase
     .from('perfiles_agresores')
     .select(PERFIL_SELECT)
-    .order('num_reportes', { ascending: false })
     .limit(100)
-  return (data ?? []).map((r) => mapPerfilRow(r as Record<string, unknown>))
+  return (data ?? [])
+    .map((r) => mapPerfilRow(r as Record<string, unknown>))
+    .sort((a, b) => {
+      const rDiff = (RIESGO_ORDER[a.nivelRiesgo] ?? 4) - (RIESGO_ORDER[b.nivelRiesgo] ?? 4)
+      if (rDiff !== 0) return rDiff
+      if (b.numReportes !== a.numReportes) return b.numReportes - a.numReportes
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    })
 }
 
 export async function getReportesDePerfl(perfilId: string): Promise<ReporteRow[]> {
