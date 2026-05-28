@@ -15,10 +15,10 @@ const CATEGORIES = [
     hint: 'Cuando el corazón late rápido, la respiración se acelera o hay tensión física.',
     color: '#5b81a8',
     methods: [
-      { name: 'Suspiro Fisiológico', desc: 'Dos inhalaciones seguidas y una exhalación larga activan el sistema parasimpático en segundos. La técnica más rápida contra el pánico agudo.', time: '< 2 MIN', fase: '1', color: '#5b81a8' },
-      { name: 'Respiración Diafragmática', desc: 'Inhala despacio llevando el aire hacia el abdomen. Activa la respuesta de calma sin esfuerzo ni conteos complejos.', time: '~ 2 MIN', fase: '4', color: '#7299bc' },
-      { name: 'Burbujas de Calma', desc: 'Toca las burbujas para soltarlas. Una distracción visual suave que ayuda a bajar la tensión sin esfuerzo.', time: '~ 2 MIN', fase: '9', color: '#89afd1' },
-      { name: 'Tensión y Liberación', desc: 'Aprieta los puños, sostén la tensión y suéltala. Una descarga física rápida para ansiedad intensa, enojo o sensación de que te vas a desbordar.', time: '< 2 MIN', fase: '13', color: '#6a8aaa' },
+      { name: 'Suspiro Fisiológico', desc: 'Dos inhalaciones seguidas y una exhalación larga. En segundos el cuerpo empieza a soltar. El método más rápido cuando sientes que te vas a desbordar.', time: '< 2 MIN', fase: '1', color: '#5b81a8' },
+      { name: 'Respiración Diafragmática', desc: 'Respira despacio llevando el aire al abdomen. Sin pasos complicados ni cuentas.', time: '~ 2 MIN', fase: '4', color: '#7299bc' },
+      { name: 'Burbujas de Calma', desc: 'Toca las burbujas para soltarlas. A veces darle algo simple a los dedos es suficiente para bajar la tensión.', time: '~ 2 MIN', fase: '9', color: '#89afd1' },
+      { name: 'Tensión y Liberación', desc: 'Aprieta los puños con fuerza, aguanta y suelta. Ayuda cuando el cuerpo siente que tiene demasiado adentro.', time: '< 2 MIN', fase: '13', color: '#6a8aaa' },
     ],
   },
   {
@@ -27,11 +27,11 @@ const CATEGORIES = [
     hint: 'Cuando te sientes desconectado/a, ausente o como si nada fuera real.',
     color: '#6b7f5e',
     methods: [
-      { name: '5-4-3-2-1 · Abrazo de Mariposa', desc: 'Ancla tus sentidos al presente nombrando lo que ves, escuchas y tocas. Interrumpe la disociación y te reconecta con tu cuerpo.', time: '~ 3 MIN', fase: '2', color: '#6b7f5e' },
-      { name: 'Reacomodo Postural', desc: 'Cinco ajustes corporales simples para salir del encogimiento y volver a sentirte presente y seguro/a.', time: '< 1 MIN', fase: '5', color: '#8a9e7a' },
-      { name: 'Frases de Anclaje', desc: 'Frases cortas para leer cuando sientes que no estás aquí o que lo que vives no está pasando de verdad.', time: '< 2 MIN', fase: '10', color: '#7a9570' },
-      { name: 'Texturas de Anclaje', desc: 'Tocar algo cercano y notar sus cualidades físicas reconecta la mente con el cuerpo en segundos.', time: '< 2 MIN', fase: '11', color: '#6e8865' },
-      { name: 'Olores de Anclaje', desc: 'Un olor familiar y seguro puede anclar la atención al presente cuando las otras técnicas no están disponibles.', time: '< 2 MIN', fase: '12', color: '#5e7855' },
+      { name: '5-4-3-2-1 · Abrazo de Mariposa', desc: 'Nombra lo que ves, escuchas y tocas. Sirve cuando sientes que estás desconectado/a o que todo pasa lejos de ti.', time: '~ 3 MIN', fase: '2', color: '#6b7f5e' },
+      { name: 'Reacomodo Postural', desc: 'Cinco movimientos simples para dejar de estar encogido/a y volver a sentirte presente.', time: '< 1 MIN', fase: '5', color: '#8a9e7a' },
+      { name: 'Frases de Anclaje', desc: 'Frases cortas para cuando sientes que no estás del todo aquí o que lo que pasa no parece real.', time: '< 2 MIN', fase: '10', color: '#7a9570' },
+      { name: 'Texturas de Anclaje', desc: 'Toca algo que tengas cerca y nota cómo se siente. Ayuda a volver al presente cuando la mente se va lejos.', time: '< 2 MIN', fase: '11', color: '#6e8865' },
+      { name: 'Olores de Anclaje', desc: 'Un olor familiar puede traerte al presente cuando no tienes otra cosa a la mano.', time: '< 2 MIN', fase: '12', color: '#5e7855' },
     ],
   },
   {
@@ -40,11 +40,11 @@ const CATEGORIES = [
     hint: 'Cuando los pensamientos no paran, hay confusión emocional o no sabes qué sientes.',
     color: '#c4a882',
     methods: [
-      { name: 'Tapping EFT', desc: 'Toca puntos específicos en tu cara y cuerpo mientras repites frases que procesan la culpa. Reduce la activación emocional y restructura la narrativa.', time: '~ 5 MIN', fase: '3', color: '#c4a882' },
-      { name: 'Pesca de Frases', desc: 'Saca peces del agua. Cada uno trae consigo una frase que tu mente puede llevarse.', time: '~ 3 MIN', fase: '14', color: '#b89a72' },
-      { name: 'Etiquetado Emocional', desc: 'Ponerle nombre a lo que sientes ayuda al cerebro a bajar la intensidad emocional. Solo elige lo que más se parece.', time: '< 1 MIN', fase: '6', color: '#b8956f' },
-      { name: 'Categorías Mentales', desc: 'Darle una tarea simple a la mente interrumpe los pensamientos repetitivos y la devuelve al presente.', time: '~ 2 MIN', fase: '7', color: '#a8855c' },
-      { name: 'Conteo Hacia Atrás', desc: 'Contar hacia atrás desde 20 ocupa la mente activa y corta el ciclo de rumiación sin ninguna presión.', time: '~ 2 MIN', fase: '8', color: '#9a7650' },
+      { name: 'Tapping EFT', desc: 'Toca puntos de tu cara y cuerpo mientras repites frases en voz baja. Ayuda a bajar la intensidad cuando hay mucha culpa o vergüenza.', time: '~ 5 MIN', fase: '3', color: '#c4a882' },
+      { name: 'Pesca de Frases', desc: 'Pesca con el dedo. Cada pez lleva una frase que puedes llevarte.', time: '~ 3 MIN', fase: '14', color: '#b89a72' },
+      { name: 'Etiquetado Emocional', desc: 'Ponerle nombre a lo que sientes ayuda a que baje un poco. Elige lo que más se acerque, no tiene que ser exacto.', time: '< 1 MIN', fase: '6', color: '#b8956f' },
+      { name: 'Categorías Mentales', desc: 'Dale a tu mente algo concreto en qué pensar. Ayuda cuando los pensamientos no dejan de dar vueltas.', time: '~ 2 MIN', fase: '7', color: '#a8855c' },
+      { name: 'Conteo Hacia Atrás', desc: 'Cuenta hacia atrás desde 20. Ocupa la parte activa de tu mente y da un respiro a los pensamientos en loop.', time: '~ 2 MIN', fase: '8', color: '#9a7650' },
     ],
   },
 ];
@@ -979,7 +979,7 @@ const SUSPIRO_SEQ: { label: string; ms: number; scale: number }[] = [
 ];
 
 function Phase1({ onDone, color }: { onDone: () => void; color: string }) {
-  const [state, setState] = useState<'breathing' | 'checkin'>('breathing');
+  const [state, setState] = useState<'intro' | 'breathing' | 'checkin'>('intro');
   const [cycle, setCycle] = useState(0);
   const [step, setStep]   = useState(0);
   const totalCycles = 3;
@@ -995,6 +995,17 @@ function Phase1({ onDone, color }: { onDone: () => void; color: string }) {
   }, [step, cycle, state]);
 
   const cur = SUSPIRO_SEQ[step];
+
+  if (state === 'intro') return (
+    <CenteredFlow>
+      <FadeKey key="intro" k="intro">
+        <h2 style={titleStyle}>Suspiro fisiológico.</h2>
+        <p style={mutedTextStyle}>Primero una inhalación profunda por la nariz, luego un sorbito rápido para terminar de llenar los pulmones, y después una exhalación lenta y completa por la boca. La exhalación larga es la que hace el trabajo: le indica al corazón que puede ir más despacio. Tres ciclos.</p>
+      </FadeKey>
+      <Btn onClick={() => setState('breathing')}>Iniciar</Btn>
+      <Btn variant="ghost" onClick={onDone}>Elegir otro método</Btn>
+    </CenteredFlow>
+  );
 
   if (state === 'breathing') return (
     <CenteredFlow>
@@ -1134,10 +1145,21 @@ function TapFaceMap({ active, color }: { active: number; color: string }) {
 
 function Phase3({ router, color }: { router: ReturnType<typeof useRouter>; color: string }) {
   const [tStep, setTStep] = useState(0);
-  const [ui, setUi]       = useState<'tapping' | 'psychoed'>('tapping');
+  const [ui, setUi]       = useState<'intro' | 'tapping' | 'psychoed'>('intro');
   const round    = Math.floor(tStep / 4) + 1;
   const pointIdx = tStep % 4;
   const advance  = () => tStep < 7 ? setTStep(s => s + 1) : setUi('psychoed');
+
+  if (ui === 'intro') return (
+    <CenteredFlow>
+      <FadeKey key="intro" k="intro">
+        <h2 style={titleStyle}>Tapping EFT.</h2>
+        <p style={mutedTextStyle}>Vas a tocar ligeramente con los dedos varios puntos de tu cara y cuerpo — ceja, hueso de la mejilla, debajo del labio, clavícula — mientras repites frases en voz baja. Dos rondas completas. La combinación de contacto físico y palabras ayuda a bajar la intensidad cuando hay mucha culpa o vergüenza.</p>
+      </FadeKey>
+      <Btn onClick={() => setUi('tapping')}>Iniciar</Btn>
+      <Btn variant="ghost" onClick={() => router.push('/joven/regulacion')}>Elegir otro método</Btn>
+    </CenteredFlow>
+  );
 
   if (ui === 'psychoed') return (
     <CenteredFlow>
@@ -1185,7 +1207,7 @@ const DIAF_SEQ: { label: string; ms: number; scale: number }[] = [
 ];
 
 function Phase4({ onDone, color }: { onDone: () => void; color: string }) {
-  const [state, setState] = useState<'breathing' | 'done'>('breathing');
+  const [state, setState] = useState<'intro' | 'breathing' | 'done'>('intro');
   const [cycle, setCycle] = useState(0);
   const [step, setStep]   = useState(0);
   const total = 6;
@@ -1208,6 +1230,17 @@ function Phase4({ onDone, color }: { onDone: () => void; color: string }) {
       <p style={mutedTextStyle}>Tu cuerpo acaba de practicar bajar la alarma.</p>
       <Btn variant="ghost" onClick={() => { setCycle(0); setStep(0); setState('breathing'); }}>Repetir</Btn>
       <Btn onClick={onDone}>Volver al catálogo</Btn>
+    </CenteredFlow>
+  );
+
+  if (state === 'intro') return (
+    <CenteredFlow>
+      <FadeKey key="intro" k="intro">
+        <h2 style={titleStyle}>Respiración diafragmática.</h2>
+        <p style={mutedTextStyle}>Vas a respirar llevando el aire al abdomen, no al pecho. Una esfera te guía el ritmo: cuando crece, inhala; cuando se contrae, exhala. Hay una pausa corta entre medio. Seis ciclos de unos once segundos cada uno. Sin contar, sin esfuerzo extra.</p>
+      </FadeKey>
+      <Btn onClick={() => setState('breathing')}>Iniciar</Btn>
+      <Btn variant="ghost" onClick={onDone}>Elegir otro método</Btn>
     </CenteredFlow>
   );
 
@@ -1364,9 +1397,22 @@ function PostureCharacter({ pose, color, size = 200 }: { pose: string; color: st
 }
 
 function Phase5({ onDone, color }: { onDone: () => void; color: string }) {
+  const [started, setStarted] = useState(false);
   const [step, setStep] = useState(0);
   const last = step === POSTURAL_STEPS.length - 1;
   const cur  = POSTURAL_STEPS[step];
+
+  if (!started) return (
+    <CenteredFlow>
+      <FadeKey key="intro" k="intro">
+        <h2 style={titleStyle}>Reacomodo postural.</h2>
+        <p style={mutedTextStyle}>Cuando estamos mal, el cuerpo suele encogerse sin que nos demos cuenta. Vas a hacer cinco ajustes simples — pies, espalda, hombros, mirada y respiración — siguiendo a un personaje en pantalla. Solo copia lo que hace, un paso a la vez.</p>
+      </FadeKey>
+      <Btn onClick={() => setStarted(true)}>Iniciar</Btn>
+      <Btn variant="ghost" onClick={onDone}>Elegir otro método</Btn>
+    </CenteredFlow>
+  );
+
   return (
     <CenteredFlow>
       <Counter current={step + 1} total={POSTURAL_STEPS.length} color={color} />
@@ -1395,7 +1441,19 @@ const EMOTION_FACE: Record<string, string> = {
 };
 
 function Phase6({ onDone, color }: { onDone: () => void; color: string }) {
+  const [started, setStarted] = useState(false);
   const [picked, setPicked] = useState<string | null>(null);
+
+  if (!started) return (
+    <CenteredFlow>
+      <FadeKey key="intro" k="intro">
+        <h2 style={titleStyle}>Etiquetado emocional.</h2>
+        <p style={mutedTextStyle}>Vas a ver una lista de palabras y elegir la que más se acerque a lo que sientes ahora. No tiene que ser exacta — solo la más cercana. Ponerle nombre a lo que sientes le dice al cerebro que lo está procesando, y eso solo ya puede bajar un poco la intensidad.</p>
+      </FadeKey>
+      <Btn onClick={() => setStarted(true)}>Iniciar</Btn>
+      <Btn variant="ghost" onClick={onDone}>Elegir otro método</Btn>
+    </CenteredFlow>
+  );
 
   if (picked) return (
     <CenteredFlow>
@@ -1455,10 +1513,21 @@ const CATEGS = [
 ];
 
 function Phase7({ onDone, color }: { onDone: () => void; color: string }) {
-  const [phase, setPhase] = useState<'pick' | 'input' | 'done'>('pick');
+  const [phase, setPhase] = useState<'intro' | 'pick' | 'input' | 'done'>('intro');
   const [cat, setCat]     = useState<typeof CATEGS[0] | null>(null);
   const [items, setItems] = useState(['', '', '', '', '']);
   const [i, setI]         = useState(0);
+
+  if (phase === 'intro') return (
+    <CenteredFlow>
+      <FadeKey key="intro" k="intro">
+        <h2 style={titleStyle}>Categorías mentales.</h2>
+        <p style={mutedTextStyle}>Vas a elegir una categoría — animales, comidas, países, lo que quieras — y nombrar cinco cosas que pertenezcan a ella. La idea es darle a la parte activa de tu mente una tarea concreta para interrumpir los pensamientos en loop. Puedes escribirlos o solo pensarlos.</p>
+      </FadeKey>
+      <Btn onClick={() => setPhase('pick')}>Iniciar</Btn>
+      <Btn variant="ghost" onClick={onDone}>Elegir otro método</Btn>
+    </CenteredFlow>
+  );
 
   if (phase === 'pick') return (
     <CenteredFlow>
@@ -1523,15 +1592,27 @@ function Phase7({ onDone, color }: { onDone: () => void; color: string }) {
 ═══════════════════════════════════════════════════════ */
 
 function Phase8({ onDone, color }: { onDone: () => void; color: string }) {
+  const [started, setStarted] = useState(false);
   const [n, setN]           = useState(20);
   const [paused, setPaused] = useState(false);
   const STEP_MS = 2000;
 
   useEffect(() => {
-    if (n === 0 || paused) return;
+    if (!started || n === 0 || paused) return;
     const t = setTimeout(() => setN(x => x - 1), STEP_MS);
     return () => clearTimeout(t);
   }, [n, paused]);
+
+  if (!started) return (
+    <CenteredFlow>
+      <FadeKey key="intro" k="intro">
+        <h2 style={titleStyle}>Conteo hacia atrás.</h2>
+        <p style={mutedTextStyle}>Vas a contar desde 20 hasta 0 siguiendo una barra en pantalla. Cada número ocupa un poco de atención — lo suficiente para darle un respiro a los pensamientos que no paran. Puedes seguir el ritmo de la barra o ir a tu propio paso.</p>
+      </FadeKey>
+      <Btn onClick={() => setStarted(true)}>Iniciar</Btn>
+      <Btn variant="ghost" onClick={onDone}>Elegir otro método</Btn>
+    </CenteredFlow>
+  );
 
   if (n === 0) return (
     <CenteredFlow>
@@ -1736,6 +1817,7 @@ function PescaScene({ fishList, caughtIds, hookedId, color, onCatch }: {
 }
 
 function Phase14({ onDone, color }: { onDone: () => void; color: string }) {
+  const [started, setStarted] = useState(false);
   const totalCatch = 5;
   const fishList = useMemo<FishDef[]>(() => {
     const phrases = shuffle(PESCA_PHRASES);
@@ -1760,6 +1842,17 @@ function Phase14({ onDone, color }: { onDone: () => void; color: string }) {
   }, [hooked]);
 
   const caughtCount = caughtIds.size;
+
+  if (!started) return (
+    <CenteredFlow>
+      <FadeKey key="intro" k="intro">
+        <h2 style={titleStyle}>Pesca de frases.</h2>
+        <p style={mutedTextStyle}>La pantalla se va a llenar de peces nadando. Cada uno lleva una frase. Toca los que quieras y quédate con las que te sirvan — no tienes que creer todo lo que pesques, solo ver qué resuena. Atrapa cinco.</p>
+      </FadeKey>
+      <Btn onClick={() => setStarted(true)}>Iniciar</Btn>
+      <Btn variant="ghost" onClick={onDone}>Elegir otro método</Btn>
+    </CenteredFlow>
+  );
 
   if (caughtCount >= totalCatch && !showing) {
     return (
@@ -1973,19 +2066,22 @@ function PoppedBurst({ b }: { b: BubbleDef }) {
 }
 
 function Phase9({ onDone }: { onDone: () => void }) {
+  const [started, setStarted] = useState(false);
   const [bubbles, setBubbles] = useState<BubbleDef[]>([]);
   const [showExit, setShowExit] = useState(false);
   const idRef = useRef(100);
 
   useEffect(() => {
+    if (!started) return;
     const arr: BubbleDef[] = [];
     for (let i = 0; i < 9; i++) arr.push(makeBubbleDef('b' + (idRef.current++) + i, arr));
     setBubbles(arr);
     const t = setTimeout(() => setShowExit(true), 2000);
     return () => clearTimeout(t);
-  }, []);
+  }, [started]);
 
   useEffect(() => {
+    if (!started) return;
     let alive = true;
     let tt: ReturnType<typeof setTimeout>;
     const tick = () => {
@@ -1999,19 +2095,31 @@ function Phase9({ onDone }: { onDone: () => void }) {
     };
     tt = setTimeout(tick, 1200);
     return () => { alive = false; clearTimeout(tt); };
-  }, []);
+  }, [started]);
 
   useEffect(() => {
+    if (!started) return;
     const gc = setInterval(() => {
       setBubbles(prev => prev.filter(b => !b.popping || !b.poppedAt || (Date.now() - b.poppedAt) < 600));
     }, 800);
     return () => clearInterval(gc);
-  }, []);
+  }, [started]);
 
   const pop = (id: string) => {
     buzz(10);
     setBubbles(prev => prev.map(b => b.id === id ? { ...b, popping: true, poppedAt: Date.now() } : b));
   };
+
+  if (!started) return (
+    <CenteredFlow>
+      <FadeKey key="intro" k="intro">
+        <h2 style={titleStyle}>Burbujas de calma.</h2>
+        <p style={mutedTextStyle}>La pantalla se va a llenar de burbujas. Tócalas para soltarlas. No hay objetivo ni tiempo límite — solo tus dedos y las burbujas. Quédate el tiempo que necesites.</p>
+      </FadeKey>
+      <Btn onClick={() => setStarted(true)}>Iniciar</Btn>
+      <Btn variant="ghost" onClick={onDone}>Elegir otro método</Btn>
+    </CenteredFlow>
+  );
 
   return (
     <div style={{ position: 'fixed', inset: 0, top: 56, background: C.bg, zIndex: 4, overflow: 'hidden' }}>
@@ -2051,8 +2159,21 @@ const FRASES_ANCLAJE = [
 ];
 
 function Phase10({ onDone, color }: { onDone: () => void; color: string }) {
+  const [started, setStarted] = useState(false);
   const [i, setI] = useState(0);
   const last = i === FRASES_ANCLAJE.length - 1;
+
+  if (!started) return (
+    <CenteredFlow>
+      <FadeKey key="intro" k="intro">
+        <h2 style={titleStyle}>Frases de anclaje.</h2>
+        <p style={mutedTextStyle}>Vas a leer cinco frases cortas, una a la vez. No tienes que creerlas ni analizarlas — solo léelas despacio y deja que cada una esté un momento antes de pasar a la siguiente. Sirven cuando sientes que no estás del todo aquí o que lo que pasa no parece real.</p>
+      </FadeKey>
+      <Btn onClick={() => setStarted(true)}>Iniciar</Btn>
+      <Btn variant="ghost" onClick={onDone}>Elegir otro método</Btn>
+    </CenteredFlow>
+  );
+
   return (
     <CenteredFlow>
       <Counter current={i + 1} total={FRASES_ANCLAJE.length} color={color} />
@@ -2087,9 +2208,20 @@ const TEXT_TAG_MESSAGES: Record<string, string> = {
 };
 
 function Phase11({ onDone, color }: { onDone: () => void; color: string }) {
-  const [phase, setPhase] = useState<'steps' | 'tags' | 'done'>('steps');
+  const [phase, setPhase] = useState<'intro' | 'steps' | 'tags' | 'done'>('intro');
   const [step, setStep]   = useState(0);
   const [tags, setTags]   = useState<string[]>([]);
+
+  if (phase === 'intro') return (
+    <CenteredFlow>
+      <FadeKey key="intro" k="intro">
+        <h2 style={titleStyle}>Texturas de anclaje.</h2>
+        <p style={mutedTextStyle}>Vas a buscar un objeto cercano — puede ser cualquier cosa: tu ropa, una taza, el celular — y explorarlo con los dedos prestando atención a cómo se siente. Temperatura, peso, textura. El tacto es una de las formas más directas de traer la mente de vuelta al cuerpo.</p>
+      </FadeKey>
+      <Btn onClick={() => setPhase('steps')}>Iniciar</Btn>
+      <Btn variant="ghost" onClick={onDone}>Elegir otro método</Btn>
+    </CenteredFlow>
+  );
 
   if (phase === 'steps') {
     const last = step === TEXT_STEPS.length - 1;
@@ -2150,8 +2282,19 @@ const OLOR_STEPS = [
 ];
 
 function Phase12({ onDone, onGoToFase }: { onDone: () => void; onGoToFase: (f: string) => void }) {
-  const [phase, setPhase] = useState<'intro' | 'steps' | 'fallback' | 'done'>('intro');
+  const [phase, setPhase] = useState<'welcome' | 'intro' | 'steps' | 'fallback' | 'done'>('welcome');
   const [step, setStep]   = useState(0);
+
+  if (phase === 'welcome') return (
+    <CenteredFlow>
+      <FadeKey key="welcome" k="welcome">
+        <h2 style={titleStyle}>Olores de anclaje.</h2>
+        <p style={mutedTextStyle}>Un olor conocido activa la memoria y ancla la atención al presente casi de inmediato. Puede ser cualquier cosa que tengas cerca: una bebida, tu ropa, una crema, algo de comer. Te vamos a guiar para usarlo.</p>
+      </FadeKey>
+      <Btn onClick={() => setPhase('intro')}>Iniciar</Btn>
+      <Btn variant="ghost" onClick={onDone}>Elegir otro método</Btn>
+    </CenteredFlow>
+  );
 
   if (phase === 'intro') return (
     <CenteredFlow>
@@ -2371,7 +2514,7 @@ function Phase13({ onDone, color }: { onDone: () => void; color: string }) {
     <CenteredFlow>
       <FadeKey key="intro" k="intro">
         <h2 style={titleStyle}>Tensión y liberación.</h2>
-        <p style={mutedTextStyle}>Vas a inhalar, apretar los puños con fuerza mientras aguantas el aire, y luego soltarlo todo de golpe. Tres rondas. Aprieta fuerte, pero nunca hasta sentir dolor.</p>
+        <p style={mutedTextStyle}>Vas a inhalar profundo, apretar los puños con fuerza mientras aguantas el aire, y luego soltar todo de golpe — manos y aire al mismo tiempo. La descarga física ayuda cuando sientes que el cuerpo tiene demasiado adentro. Tres rondas. Aprieta fuerte, pero nunca hasta sentir dolor.</p>
       </FadeKey>
       <Btn onClick={() => setState('active')}>Iniciar</Btn>
       <Btn variant="ghost" onClick={onDone}>Elegir otro método</Btn>
@@ -2559,7 +2702,7 @@ function SelectionView({ isMobile, router }: { isMobile: boolean; router: Return
       <div style={{
         marginTop: 48, padding: '16px 20px', borderRadius: 16,
         background: 'rgba(167,199,231,0.10)', border: '1px solid rgba(167,199,231,0.30)',
-        maxWidth: 540,
+        maxWidth: 540, marginLeft: 'auto', marginRight: 'auto',
       }}>
         <p style={{ fontFamily: 'var(--font-body)', fontSize: 14.5, color: C.body, lineHeight: 1.65, margin: 0 }}>
           Si en este momento te sientes en crisis o no puedes usar estas herramientas,{' '}
