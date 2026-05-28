@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo, Suspense, type ReactNode } from 'react';
+import { useState, useEffect, useRef, useMemo, Suspense, Fragment, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter, useSearchParams } from 'next/navigation';
 import useMediaQuery from '@mui/material/useMediaQuery';
@@ -15,10 +15,10 @@ const CATEGORIES = [
     hint: 'Cuando el corazón late rápido, la respiración se acelera o hay tensión física.',
     color: '#5b81a8',
     methods: [
-      { name: 'Suspiro Fisiológico', desc: 'Dos inhalaciones seguidas y una exhalación larga activan el sistema parasimpático en segundos. La técnica más rápida contra el pánico agudo.', time: '< 2 MIN', fase: '1', color: '#5b81a8' },
-      { name: 'Respiración Diafragmática', desc: 'Inhala despacio llevando el aire hacia el abdomen. Activa la respuesta de calma sin esfuerzo ni conteos complejos.', time: '~ 2 MIN', fase: '4', color: '#7299bc' },
-      { name: 'Burbujas de Calma', desc: 'Toca las burbujas para soltarlas. Una distracción visual suave que ayuda a bajar la tensión sin esfuerzo.', time: '~ 2 MIN', fase: '9', color: '#89afd1' },
-      { name: 'Tensión y Liberación', desc: 'Aprieta los puños, sostén la tensión y suéltala. Una descarga física rápida para ansiedad intensa, enojo o sensación de que te vas a desbordar.', time: '< 2 MIN', fase: '13', color: '#6a8aaa' },
+      { name: 'Suspiro Fisiológico', desc: 'Dos inhalaciones seguidas y una exhalación larga. En segundos el cuerpo empieza a soltar. El método más rápido cuando sientes que te vas a desbordar.', time: '< 2 MIN', fase: '1', color: '#5b81a8' },
+      { name: 'Respiración Diafragmática', desc: 'Respira despacio llevando el aire al abdomen. Sin pasos complicados ni cuentas.', time: '~ 2 MIN', fase: '4', color: '#7299bc' },
+      { name: 'Burbujas de Calma', desc: 'Toca las burbujas para soltarlas. A veces darle algo simple a los dedos es suficiente para bajar la tensión.', time: '~ 2 MIN', fase: '9', color: '#89afd1' },
+      { name: 'Tensión y Liberación', desc: 'Aprieta los puños con fuerza, aguanta y suelta. Ayuda cuando el cuerpo siente que tiene demasiado adentro.', time: '< 2 MIN', fase: '13', color: '#6a8aaa' },
     ],
   },
   {
@@ -27,11 +27,11 @@ const CATEGORIES = [
     hint: 'Cuando te sientes desconectado/a, ausente o como si nada fuera real.',
     color: '#6b7f5e',
     methods: [
-      { name: '5-4-3-2-1 · Abrazo de Mariposa', desc: 'Ancla tus sentidos al presente nombrando lo que ves, escuchas y tocas. Interrumpe la disociación y te reconecta con tu cuerpo.', time: '~ 3 MIN', fase: '2', color: '#6b7f5e' },
-      { name: 'Reacomodo Postural', desc: 'Cinco ajustes corporales simples para salir del encogimiento y volver a sentirte presente y seguro/a.', time: '< 1 MIN', fase: '5', color: '#8a9e7a' },
-      { name: 'Frases de Anclaje', desc: 'Frases cortas para leer cuando sientes que no estás aquí o que lo que vives no está pasando de verdad.', time: '< 2 MIN', fase: '10', color: '#7a9570' },
-      { name: 'Texturas de Anclaje', desc: 'Tocar algo cercano y notar sus cualidades físicas reconecta la mente con el cuerpo en segundos.', time: '< 2 MIN', fase: '11', color: '#6e8865' },
-      { name: 'Olores de Anclaje', desc: 'Un olor familiar y seguro puede anclar la atención al presente cuando las otras técnicas no están disponibles.', time: '< 2 MIN', fase: '12', color: '#5e7855' },
+      { name: '5-4-3-2-1 · Abrazo de Mariposa', desc: 'Nombra lo que ves, escuchas y tocas. Sirve cuando sientes que estás desconectado/a o que todo pasa lejos de ti.', time: '~ 3 MIN', fase: '2', color: '#6b7f5e' },
+      { name: 'Reacomodo Postural', desc: 'Cinco movimientos simples para dejar de estar encogido/a y volver a sentirte presente.', time: '< 1 MIN', fase: '5', color: '#8a9e7a' },
+      { name: 'Frases de Anclaje', desc: 'Frases cortas para cuando sientes que no estás del todo aquí o que lo que pasa no parece real.', time: '< 2 MIN', fase: '10', color: '#7a9570' },
+      { name: 'Texturas de Anclaje', desc: 'Toca algo que tengas cerca y nota cómo se siente. Ayuda a volver al presente cuando la mente se va lejos.', time: '< 2 MIN', fase: '11', color: '#6e8865' },
+      { name: 'Olores de Anclaje', desc: 'Un olor familiar puede traerte al presente cuando no tienes otra cosa a la mano.', time: '< 2 MIN', fase: '12', color: '#5e7855' },
     ],
   },
   {
@@ -40,11 +40,11 @@ const CATEGORIES = [
     hint: 'Cuando los pensamientos no paran, hay confusión emocional o no sabes qué sientes.',
     color: '#c4a882',
     methods: [
-      { name: 'Tapping EFT', desc: 'Toca puntos específicos en tu cara y cuerpo mientras repites frases que procesan la culpa. Reduce la activación emocional y restructura la narrativa.', time: '~ 5 MIN', fase: '3', color: '#c4a882' },
-      { name: 'Pesca de Frases', desc: 'Saca peces del agua. Cada uno trae consigo una frase que tu mente puede llevarse.', time: '~ 3 MIN', fase: '14', color: '#b89a72' },
-      { name: 'Etiquetado Emocional', desc: 'Ponerle nombre a lo que sientes ayuda al cerebro a bajar la intensidad emocional. Solo elige lo que más se parece.', time: '< 1 MIN', fase: '6', color: '#b8956f' },
-      { name: 'Categorías Mentales', desc: 'Darle una tarea simple a la mente interrumpe los pensamientos repetitivos y la devuelve al presente.', time: '~ 2 MIN', fase: '7', color: '#a8855c' },
-      { name: 'Conteo Hacia Atrás', desc: 'Contar hacia atrás desde 20 ocupa la mente activa y corta el ciclo de rumiación sin ninguna presión.', time: '~ 2 MIN', fase: '8', color: '#9a7650' },
+      { name: 'Tapping EFT', desc: 'Toca puntos de tu cara y cuerpo mientras repites frases en voz baja. Ayuda a bajar la intensidad cuando hay mucha culpa o vergüenza.', time: '~ 5 MIN', fase: '3', color: '#c4a882' },
+      { name: 'Pesca de Frases', desc: 'Pesca con el dedo. Cada pez lleva una frase que puedes llevarte.', time: '~ 3 MIN', fase: '14', color: '#b89a72' },
+      { name: 'Etiquetado Emocional', desc: 'Ponerle nombre a lo que sientes ayuda a que baje un poco. Elige lo que más se acerque, no tiene que ser exacto.', time: '< 1 MIN', fase: '6', color: '#b8956f' },
+      { name: 'Categorías Mentales', desc: 'Dale a tu mente algo concreto en qué pensar. Ayuda cuando los pensamientos no dejan de dar vueltas.', time: '~ 2 MIN', fase: '7', color: '#a8855c' },
+      { name: 'Conteo Hacia Atrás', desc: 'Cuenta hacia atrás desde 20. Ocupa la parte activa de tu mente y da un respiro a los pensamientos en loop.', time: '~ 2 MIN', fase: '8', color: '#9a7650' },
     ],
   },
 ];
@@ -620,6 +620,64 @@ function GuideFace({ expression, color }: { expression: string; color: string })
         <text x="34" y="-18" fontFamily="serif" fontSize="22" fontWeight="500" fill={color} opacity="0.85">?</text>
       </g>
     );
+    case 'hold': return (
+      <g style={{ animation: 'ancla-face-in 0.35s ease both' }}>
+        <path d="M -18 -14 Q -12 -11 -6 -14" stroke="#2C2C2A" strokeWidth="1.8" strokeLinecap="round" fill="none" />
+        <path d="M 6 -14 Q 12 -11 18 -14" stroke="#2C2C2A" strokeWidth="1.8" strokeLinecap="round" fill="none" />
+        <path d="M -18 -8 Q -13 -5 -8 -8" stroke="#2C2C2A" strokeWidth="2.5" strokeLinecap="round" fill="none" />
+        <path d="M 8 -8 Q 13 -5 18 -8" stroke="#2C2C2A" strokeWidth="2.5" strokeLinecap="round" fill="none" />
+        <path d="M -7 15 Q 0 17 7 15" stroke="#2C2C2A" strokeWidth="2.2" strokeLinecap="round" fill="none" />
+      </g>
+    );
+    case 'inhale_deep': return (
+      <g style={{ animation: 'ancla-face-in 0.35s ease both' }}>
+        <path d="M -20 -19 Q -12 -23 -6 -19" stroke="#2C2C2A" strokeWidth="2.1" strokeLinecap="round" fill="none" />
+        <path d="M 6 -19 Q 12 -23 20 -19" stroke="#2C2C2A" strokeWidth="2.1" strokeLinecap="round" fill="none" />
+        <circle cx="-13" cy="-7" r="4.2" fill="#2C2C2A" />
+        <circle cx="13" cy="-7" r="4.2" fill="#2C2C2A" />
+        <circle cx="-11" cy="-8.8" r="1.3" fill="#FBF9F5" />
+        <circle cx="15" cy="-8.8" r="1.3" fill="#FBF9F5" />
+        <path d="M -8 16 Q 0 18 8 16" stroke="#2C2C2A" strokeWidth="2.2" strokeLinecap="round" fill="none" />
+        <g stroke={color} strokeWidth="1.9" strokeLinecap="round" fill="none">
+          <path d="M -56 -4 L -48 -4"><animate attributeName="opacity" values="0;0.75;0" dur="1.5s" repeatCount="indefinite" begin="0s" /></path>
+          <path d="M -54 -11 L -47 -7"><animate attributeName="opacity" values="0;0.6;0" dur="1.5s" repeatCount="indefinite" begin="0.35s" /></path>
+          <path d="M -54 3 L -47 -1"><animate attributeName="opacity" values="0;0.55;0" dur="1.5s" repeatCount="indefinite" begin="0.65s" /></path>
+          <path d="M 48 -4 L 56 -4"><animate attributeName="opacity" values="0;0.75;0" dur="1.5s" repeatCount="indefinite" begin="0.75s" /></path>
+          <path d="M 47 -7 L 54 -11"><animate attributeName="opacity" values="0;0.6;0" dur="1.5s" repeatCount="indefinite" begin="1.1s" /></path>
+          <path d="M 47 -1 L 54 3"><animate attributeName="opacity" values="0;0.55;0" dur="1.5s" repeatCount="indefinite" begin="1.4s" /></path>
+        </g>
+      </g>
+    );
+    case 'inhale_sip': return (
+      <g style={{ animation: 'ancla-face-in 0.35s ease both' }}>
+        <path d="M -18 -8 Q -13 -5 -8 -8" stroke="#2C2C2A" strokeWidth="2.6" strokeLinecap="round" fill="none" />
+        <path d="M 8 -8 Q 13 -5 18 -8" stroke="#2C2C2A" strokeWidth="2.6" strokeLinecap="round" fill="none" />
+        <path d="M -6 -19 Q -12 -22 -18 -18" stroke="#2C2C2A" strokeWidth="2" strokeLinecap="round" fill="none" />
+        <path d="M 6 -19 Q 12 -22 18 -18" stroke="#2C2C2A" strokeWidth="2" strokeLinecap="round" fill="none" />
+        <ellipse cx="0" cy="14" rx="3.5" ry="4.5" fill="#2C2C2A" />
+        <g stroke={color} strokeWidth="1.7" strokeLinecap="round" fill="none">
+          <path d="M -40 -4 L -34 -4"><animate attributeName="opacity" values="0;0.7;0" dur="0.75s" repeatCount="indefinite" begin="0s" /></path>
+          <path d="M -38 -10 L -33 -6"><animate attributeName="opacity" values="0;0.55;0" dur="0.75s" repeatCount="indefinite" begin="0.2s" /></path>
+          <path d="M 34 -4 L 40 -4"><animate attributeName="opacity" values="0;0.7;0" dur="0.75s" repeatCount="indefinite" begin="0.4s" /></path>
+          <path d="M 33 -6 L 38 -10"><animate attributeName="opacity" values="0;0.55;0" dur="0.75s" repeatCount="indefinite" begin="0.6s" /></path>
+        </g>
+      </g>
+    );
+    case 'exhale_long': return (
+      <g style={{ animation: 'ancla-face-in 0.35s ease both' }}>
+        <path d="M -18 -8 Q -13 -5 -8 -8" stroke="#2C2C2A" strokeWidth="2.4" strokeLinecap="round" fill="none" />
+        <path d="M 8 -8 Q 13 -5 18 -8" stroke="#2C2C2A" strokeWidth="2.4" strokeLinecap="round" fill="none" />
+        <path d="M -20 -15 Q -13 -12 -6 -15" stroke="#2C2C2A" strokeWidth="1.8" strokeLinecap="round" fill="none" />
+        <path d="M 6 -15 Q 13 -12 20 -15" stroke="#2C2C2A" strokeWidth="1.8" strokeLinecap="round" fill="none" />
+        <ellipse cx="0" cy="16" rx="5.5" ry="6.5" fill="#2C2C2A" />
+        <g stroke={color} strokeWidth="1.9" strokeLinecap="round" fill="none">
+          <path d="M 0 25 L 0 35"><animate attributeName="opacity" values="0;0.7;0" dur="2s" repeatCount="indefinite" begin="0s" /></path>
+          <path d="M -7 23 L -18 33"><animate attributeName="opacity" values="0;0.55;0" dur="2s" repeatCount="indefinite" begin="0.35s" /></path>
+          <path d="M 7 23 L 18 33"><animate attributeName="opacity" values="0;0.55;0" dur="2s" repeatCount="indefinite" begin="0.7s" /></path>
+          <path d="M 0 36 L 0 44"><animate attributeName="opacity" values="0;0.4;0" dur="2s" repeatCount="indefinite" begin="0.5s" /></path>
+        </g>
+      </g>
+    );
     default: return null;
   }
 }
@@ -776,11 +834,31 @@ const G_STEPS = [
 ] as const;
 
 const NAV_PROMPTS: Record<string, string[]> = {
-  ves:       ['Mira a tu alrededor.', 'Recorre el espacio con la mirada.', 'Algo más lejos…', 'Algo cerca de ti…', 'Una última cosa que tus ojos encuentren.'],
-  escuchas:  ['Detente. Escucha.', 'Un sonido un poco más lejos.', 'Algo más sutil, casi de fondo.', 'Un último sonido.'],
-  tocas:     ['Toca lo que tengas cerca.', 'Otra textura, distinta.', 'Una última. Sin prisa.'],
-  hueles:    ['Inhala despacio.', 'Otro olor. Puede ser sutil.'],
-  saboreas:  ['Pasa la lengua por tus dientes.'],
+  ves:      [
+    'Mira a tu alrededor. ¿Qué es lo primero que ven tus ojos?',
+    'Algo cercano. Un objeto, un color, una forma — lo que sea.',
+    'Ahora algo un poco más lejos.',
+    'Algo pequeño que quizás no habías notado.',
+    'Una última cosa. Lo que te llame la atención.',
+  ],
+  escuchas: [
+    'Detente. Escucha. ¿Qué sonido percibes ahora mismo?',
+    'Un sonido que venga de un poco más lejos.',
+    'Algo más sutil, casi de fondo. Puede ser muy suave.',
+    'Un último sonido. Puede ser tu propia respiración.',
+  ],
+  tocas:    [
+    'Toca algo que tengas cerca. ¿Cómo se siente al tacto?',
+    'Busca una textura diferente — la ropa, una superficie, el suelo.',
+    'Una última. Algo que no hayas tocado todavía.',
+  ],
+  hueles:   [
+    'Inhala despacio. ¿Hay algún olor en el aire cerca de ti?',
+    'Inhala de nuevo. Puede ser muy sutil — el ambiente, la ropa, tus manos.',
+  ],
+  saboreas: [
+    'Pasa la lengua por tus dientes. ¿Qué sabor queda en tu boca ahora mismo?',
+  ],
 };
 
 const SENSE_FACE: Record<string, string> = {
@@ -798,7 +876,7 @@ function sensePhrase(sense: string) {
   }
 }
 
-function NaveganteFlow({ color, itemMs = 7000, onDone, onExit }: { color: string; itemMs?: number; onDone: () => void; onExit: () => void }) {
+function NaveganteFlow({ color, itemMs = 12000, onDone, onExit }: { color: string; itemMs?: number; onDone: () => void; onExit: () => void }) {
   const [step, setStep]       = useState(0);
   const [subStep, setSubStep] = useState(0);
   const [mode, setMode]       = useState<'item' | 'transition'>('item');
@@ -958,8 +1036,32 @@ const SUSPIRO_SEQ: { label: string; ms: number; scale: number }[] = [
   { label: 'Suelta lento…',         ms: 4000, scale: 0.78 },
 ];
 
+const SUSPIRO_TUTO = [
+  {
+    n: 1,
+    label: 'INHALA',
+    title: 'Inhala profundo.',
+    body: 'Por la nariz. Llena el pecho y el abdomen despacio.',
+    expr: 'inhale_deep',
+  },
+  {
+    n: 2,
+    label: 'SORBITO',
+    title: 'Un sorbito más.',
+    body: 'Un jalón corto para terminar de llenar los pulmones. Rápido.',
+    expr: 'inhale_sip',
+  },
+  {
+    n: 3,
+    label: 'EXHALA',
+    title: 'Exhala largo.',
+    body: 'Por la boca, lento y completo. Esta exhalación le dice al corazón que puede ir más despacio.',
+    expr: 'exhale_long',
+  },
+] as const;
+
 function Phase1({ onDone, color }: { onDone: () => void; color: string }) {
-  const [state, setState] = useState<'breathing' | 'checkin'>('breathing');
+  const [state, setState] = useState<'intro' | 'breathing' | 'checkin'>('intro');
   const [cycle, setCycle] = useState(0);
   const [step, setStep]   = useState(0);
   const totalCycles = 3;
@@ -975,6 +1077,64 @@ function Phase1({ onDone, color }: { onDone: () => void; color: string }) {
   }, [step, cycle, state]);
 
   const cur = SUSPIRO_SEQ[step];
+
+  if (state === 'intro') return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
+      gap: 22, padding: '8px 16px 32px',
+      width: '100%', maxWidth: 700, margin: '0 auto', textAlign: 'center',
+    }}>
+      <FadeKey key="intro" k="intro">
+        <h2 style={titleStyle}>Suspiro fisiológico.</h2>
+        <p style={{ ...mutedTextStyle, maxWidth: 460 }}>Primero una inhalación profunda por la nariz, luego un sorbito rápido para terminar de llenar los pulmones, y después una exhalación lenta y completa por la boca. La exhalación larga es la que hace el trabajo: le indica al corazón que puede ir más despacio. Tres ciclos.</p>
+      </FadeKey>
+
+      {/* Mini manual — 3 pasos con aura + flechas */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', width: '100%' }}>
+        {SUSPIRO_TUTO.map((ts, idx) => (
+          <Fragment key={ts.n}>
+            <div style={{ flex: '1 1 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+              <div style={{
+                width: 30, height: 30, borderRadius: '50%', background: color,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: '#F5F2EE', fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 700,
+                boxShadow: `0 3px 12px ${color}44`,
+              }}>
+                {ts.n}
+              </div>
+              <div style={{ position: 'relative', display: 'grid', placeItems: 'center' }}>
+                <div style={{
+                  position: 'absolute', inset: -20, borderRadius: '50%',
+                  background: `radial-gradient(circle, ${color}40 0%, ${color}1a 50%, transparent 72%)`,
+                  filter: 'blur(16px)',
+                }} />
+                <GuideCharacter expression={ts.expr} color={color} size={108} />
+              </div>
+              <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.15em', color, margin: 0, textAlign: 'center' }}>
+                {ts.label}
+              </p>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: C.body, margin: 0, textAlign: 'center', lineHeight: 1.4 }}>
+                {ts.title}
+              </p>
+            </div>
+            {idx < 2 && (
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: 84, flexShrink: 0, width: 32 }}>
+                <svg width="22" height="14" viewBox="0 0 22 14" fill="none">
+                  <path d="M1 7 H17" stroke={`${color}70`} strokeWidth="1.8" strokeLinecap="round" />
+                  <path d="M11 1 L17 7 L11 13" stroke={`${color}70`} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </div>
+            )}
+          </Fragment>
+        ))}
+      </div>
+
+      <div style={{ width: '100%', maxWidth: 480, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <Btn onClick={() => setState('breathing')}>Iniciar</Btn>
+        <Btn variant="ghost" onClick={onDone}>Elegir otro método</Btn>
+      </div>
+    </div>
+  );
 
   if (state === 'breathing') return (
     <CenteredFlow>
@@ -1084,6 +1244,27 @@ const EFT = [
   { label: 'clavícula',     text: '...y elijo estar a salvo.',                                    cx: 50, cy: 70 },
 ];
 
+function TapPointPreview({ idx, color }: { idx: number; color: string }) {
+  const pt = EFT[idx];
+  return (
+    <svg viewBox="0 0 100 100" width={118} height={118} style={{ overflow: 'visible' }}>
+      <ellipse cx="50" cy="38" rx="22" ry="26" fill={C.card} stroke={C.bdr} strokeWidth="0.7" />
+      <path d="M 18 78 Q 50 60 82 78 L 82 95 L 18 95 Z" fill={C.card} stroke={C.bdr} strokeWidth="0.7" />
+      {EFT.map((p, i) => (
+        <circle key={i} cx={p.cx} cy={p.cy} r={i === idx ? 4.2 : 2.2}
+          fill={i === idx ? color : `${color}40`}
+          opacity={i === idx ? 1 : 0.3}
+          style={{ transition: 'all .3s ease' }}
+        />
+      ))}
+      <circle cx={pt.cx} cy={pt.cy} r="7" fill="none" stroke={color} strokeWidth="0.8" opacity="0.45">
+        <animate attributeName="r" values="4.2;11;4.2" dur="2s" repeatCount="indefinite" />
+        <animate attributeName="opacity" values="0.45;0.04;0.45" dur="2s" repeatCount="indefinite" />
+      </circle>
+    </svg>
+  );
+}
+
 function TapFaceMap({ active, color }: { active: number; color: string }) {
   return (
     <svg viewBox="0 0 100 100" width={200} height={200} style={{ overflow: 'visible' }}>
@@ -1114,10 +1295,54 @@ function TapFaceMap({ active, color }: { active: number; color: string }) {
 
 function Phase3({ router, color }: { router: ReturnType<typeof useRouter>; color: string }) {
   const [tStep, setTStep] = useState(0);
-  const [ui, setUi]       = useState<'tapping' | 'psychoed'>('tapping');
+  const [ui, setUi]       = useState<'intro' | 'tapping' | 'psychoed'>('intro');
   const round    = Math.floor(tStep / 4) + 1;
   const pointIdx = tStep % 4;
   const advance  = () => tStep < 7 ? setTStep(s => s + 1) : setUi('psychoed');
+
+  const EFT_TUTO = [
+    { n: 1, idx: 0, label: 'CEJA',         title: 'Toca la ceja.',           body: 'Al inicio de la ceja, cerca de la nariz. Suave, con dos dedos.' },
+    { n: 2, idx: 1, label: 'LADO DEL OJO', title: 'Lado del ojo.',           body: 'En el hueso justo al lado del ojo. Sin presionar.' },
+    { n: 3, idx: 2, label: 'BAJO LA NARIZ',title: 'Bajo la nariz.',          body: 'En el surco entre nariz y labio superior.' },
+    { n: 4, idx: 3, label: 'CLAVÍCULA',    title: 'En la clavícula.',        body: 'Donde termina el cuello. Mientras repites la frase en voz baja.' },
+  ] as const;
+
+  if (ui === 'intro') return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 22, padding: '8px 16px 32px', width: '100%', maxWidth: 700, margin: '0 auto', textAlign: 'center' }}>
+      <FadeKey key="intro" k="intro">
+        <h2 style={titleStyle}>Tapping EFT.</h2>
+        <p style={{ ...mutedTextStyle, maxWidth: 460 }}>Vas a tocar con dos dedos cuatro puntos de tu cara, uno por uno, mientras repites frases en voz baja. Dos rondas completas.</p>
+      </FadeKey>
+      <div style={{ display: 'flex', alignItems: 'flex-start', width: '100%' }}>
+        {EFT_TUTO.map((ts, i) => (
+          <Fragment key={ts.n}>
+            <div style={{ flex: '1 1 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+              <div style={{ width: 30, height: 30, borderRadius: '50%', background: color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, flexShrink: 0 }}>{ts.n}</div>
+              <div style={{ position: 'relative', display: 'grid', placeItems: 'center' }}>
+                <div style={{ position: 'absolute', inset: -20, borderRadius: '50%', background: `radial-gradient(circle, ${color}40 0%, ${color}1a 50%, transparent 72%)`, filter: 'blur(16px)' }} />
+                <TapPointPreview idx={ts.idx} color={color} />
+              </div>
+              <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.15em', color, textTransform: 'uppercase', margin: 0 }}>{ts.label}</p>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: C.body, margin: 0, lineHeight: 1.4 }}>{ts.title}</p>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: C.muted, margin: 0, lineHeight: 1.4, maxWidth: 110 }}>{ts.body}</p>
+            </div>
+            {i < 3 && (
+              <div style={{ paddingTop: 90, flexShrink: 0, width: 28, display: 'flex', justifyContent: 'center' }}>
+                <svg width="22" height="14" viewBox="0 0 22 14" fill="none">
+                  <path d="M1 7 H17" stroke={`${color}70`} strokeWidth="1.8" strokeLinecap="round" />
+                  <path d="M11 1 L17 7 L11 13" stroke={`${color}70`} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </div>
+            )}
+          </Fragment>
+        ))}
+      </div>
+      <div style={{ width: '100%', maxWidth: 480, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <Btn onClick={() => setUi('tapping')}>Iniciar</Btn>
+        <Btn variant="ghost" onClick={() => router.replace('/joven/regulacion')}>Elegir otro método</Btn>
+      </div>
+    </div>
+  );
 
   if (ui === 'psychoed') return (
     <CenteredFlow>
@@ -1135,7 +1360,7 @@ function Phase3({ router, color }: { router: ReturnType<typeof useRouter>; color
       </p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%', maxWidth: 360 }}>
         <LakeButton color={color} onClick={() => router.push('/joven/chat')}>Regresar con ANA</LakeButton>
-        <Btn variant="ghost" onClick={() => router.push('/joven/regulacion')}>Volver a los métodos</Btn>
+        <Btn variant="ghost" onClick={() => router.replace('/joven/regulacion')}>Volver a los métodos</Btn>
       </div>
     </CenteredFlow>
   );
@@ -1148,7 +1373,7 @@ function Phase3({ router, color }: { router: ReturnType<typeof useRouter>; color
         <p style={microStyle}>{EFT[pointIdx].label}</p>
         <p style={{ ...instructionStyle, fontStyle: 'italic', maxWidth: 360 }}>{EFT[pointIdx].text}</p>
       </FadeKey>
-      <Btn variant="quiet" onClick={() => router.push('/joven/regulacion')}>Detener</Btn>
+      <Btn variant="quiet" onClick={() => router.replace('/joven/regulacion')}>Detener</Btn>
       <LakeButton color={color} onClick={advance}>Toqué este punto · siguiente</LakeButton>
     </CenteredFlow>
   );
@@ -1159,13 +1384,19 @@ function Phase3({ router, color }: { router: ReturnType<typeof useRouter>; color
 ═══════════════════════════════════════════════════════ */
 
 const DIAF_SEQ: { label: string; ms: number; scale: number }[] = [
-  { label: 'Inhala despacio, lleva el aire al abdomen…', ms: 3500, scale: 1.18 },
+  { label: 'Inhala despacio, lleva el aire al abdomen…', ms: 5000, scale: 1.18 },
   { label: 'Sostén un momento…',                         ms: 1500, scale: 1.18 },
-  { label: 'Exhala lento…',                              ms: 4000, scale: 0.82 },
+  { label: 'Exhala lento…',                              ms: 5000, scale: 0.82 },
 ];
 
+const DIAF_TUTO = [
+  { n: 1, label: 'INHALA',  title: 'Al abdomen.',     body: 'Lleva el aire hacia abajo, no al pecho. El abdomen se expande.', expr: 'inhale_deep' },
+  { n: 2, label: 'SOSTÉN',  title: 'Un momento.',     body: 'Sin esfuerzo. Solo una pausa natural antes de soltar.',          expr: 'hold'        },
+  { n: 3, label: 'EXHALA',  title: 'Lento y largo.',  body: 'Por la boca. Una esfera en pantalla guía el ritmo.',             expr: 'exhale_long' },
+] as const;
+
 function Phase4({ onDone, color }: { onDone: () => void; color: string }) {
-  const [state, setState] = useState<'breathing' | 'done'>('breathing');
+  const [state, setState] = useState<'intro' | 'breathing' | 'done'>('intro');
   const [cycle, setCycle] = useState(0);
   const [step, setStep]   = useState(0);
   const total = 6;
@@ -1189,6 +1420,66 @@ function Phase4({ onDone, color }: { onDone: () => void; color: string }) {
       <Btn variant="ghost" onClick={() => { setCycle(0); setStep(0); setState('breathing'); }}>Repetir</Btn>
       <Btn onClick={onDone}>Volver al catálogo</Btn>
     </CenteredFlow>
+  );
+
+  if (state === 'intro') return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
+      gap: 22, padding: '8px 16px 32px',
+      width: '100%', maxWidth: 700, margin: '0 auto', textAlign: 'center',
+    }}>
+      <FadeKey key="intro" k="intro">
+        <h2 style={titleStyle}>Respiración diafragmática.</h2>
+        <p style={{ ...mutedTextStyle, maxWidth: 460 }}>Vas a respirar llevando el aire al abdomen, no al pecho. Una esfera te guía el ritmo: cuando crece, inhala; cuando se contrae, exhala. Hay una pausa corta entre medio. Seis ciclos de unos once segundos cada uno. Sin contar, sin esfuerzo extra.</p>
+      </FadeKey>
+
+      <div style={{ display: 'flex', alignItems: 'flex-start', width: '100%' }}>
+        {DIAF_TUTO.map((ts, idx) => (
+          <Fragment key={ts.n}>
+            <div style={{ flex: '1 1 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+              <div style={{
+                width: 30, height: 30, borderRadius: '50%', background: color,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: '#F5F2EE', fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 700,
+                boxShadow: `0 3px 12px ${color}44`,
+              }}>
+                {ts.n}
+              </div>
+              <div style={{ position: 'relative', display: 'grid', placeItems: 'center' }}>
+                <div style={{
+                  position: 'absolute', inset: -20, borderRadius: '50%',
+                  background: `radial-gradient(circle, ${color}40 0%, ${color}1a 50%, transparent 72%)`,
+                  filter: 'blur(16px)',
+                }} />
+                <GuideCharacter expression={ts.expr} color={color} size={108} />
+              </div>
+              <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.15em', color, margin: 0, textAlign: 'center' }}>
+                {ts.label}
+              </p>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: C.body, margin: 0, textAlign: 'center', lineHeight: 1.4 }}>
+                {ts.title}
+              </p>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 11.5, color: C.faint, margin: 0, textAlign: 'center', lineHeight: 1.4 }}>
+                {ts.body}
+              </p>
+            </div>
+            {idx < 2 && (
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: 84, flexShrink: 0, width: 32 }}>
+                <svg width="22" height="14" viewBox="0 0 22 14" fill="none">
+                  <path d="M1 7 H17" stroke={`${color}70`} strokeWidth="1.8" strokeLinecap="round" />
+                  <path d="M11 1 L17 7 L11 13" stroke={`${color}70`} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </div>
+            )}
+          </Fragment>
+        ))}
+      </div>
+
+      <div style={{ width: '100%', maxWidth: 480, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <Btn onClick={() => setState('breathing')}>Iniciar</Btn>
+        <Btn variant="ghost" onClick={onDone}>Elegir otro método</Btn>
+      </div>
+    </div>
   );
 
   const cur = DIAF_SEQ[step];
@@ -1343,10 +1634,78 @@ function PostureCharacter({ pose, color, size = 200 }: { pose: string; color: st
   );
 }
 
+const POSTURAL_TUTO: { n: number; pose: 'feet'|'back'|'shoulders'|'gaze'|'breathe'; label: string; title: string; body: string }[] = [
+  { n: 1, pose: 'feet',      label: 'PIES',    title: 'Pies en el piso.',  body: 'Los dos, bien plantados.' },
+  { n: 2, pose: 'shoulders', label: 'HOMBROS', title: 'Suéltalos.',        body: 'Deja que caigan solos.' },
+  { n: 3, pose: 'breathe',   label: 'RESPIRA', title: 'Deja que entre.',   body: 'Tu cuerpo puede estar aquí.' },
+];
+
 function Phase5({ onDone, color }: { onDone: () => void; color: string }) {
+  const [started, setStarted] = useState(false);
   const [step, setStep] = useState(0);
   const last = step === POSTURAL_STEPS.length - 1;
   const cur  = POSTURAL_STEPS[step];
+
+  if (!started) return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
+      gap: 22, padding: '8px 16px 32px',
+      width: '100%', maxWidth: 700, margin: '0 auto', textAlign: 'center',
+    }}>
+      <FadeKey key="intro" k="intro">
+        <h2 style={titleStyle}>Reacomodo postural.</h2>
+        <p style={{ ...mutedTextStyle, maxWidth: 460 }}>Cuando estamos mal, el cuerpo suele encogerse sin que nos demos cuenta. Vas a hacer cinco ajustes simples — pies, espalda, hombros, mirada y respiración — siguiendo a un personaje en pantalla. Solo copia lo que hace, un paso a la vez.</p>
+      </FadeKey>
+
+      <div style={{ display: 'flex', alignItems: 'flex-start', width: '100%' }}>
+        {POSTURAL_TUTO.map((ts, idx) => (
+          <Fragment key={ts.n}>
+            <div style={{ flex: '1 1 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+              <div style={{
+                width: 30, height: 30, borderRadius: '50%', background: color,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: '#F5F2EE', fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 700,
+                boxShadow: `0 3px 12px ${color}44`, flexShrink: 0,
+              }}>
+                {ts.n}
+              </div>
+              <div style={{ position: 'relative', display: 'grid', placeItems: 'center' }}>
+                <div style={{
+                  position: 'absolute', inset: -14, borderRadius: 24,
+                  background: `radial-gradient(ellipse at 50% 60%, ${color}38 0%, ${color}16 55%, transparent 78%)`,
+                  filter: 'blur(14px)',
+                }} />
+                <PostureCharacter pose={ts.pose} color={color} size={110} />
+              </div>
+              <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.15em', color, margin: 0, textAlign: 'center' }}>
+                {ts.label}
+              </p>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: C.body, margin: 0, textAlign: 'center', lineHeight: 1.4, fontWeight: 500 }}>
+                {ts.title}
+              </p>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 11.5, color: C.faint, margin: 0, textAlign: 'center', lineHeight: 1.4 }}>
+                {ts.body}
+              </p>
+            </div>
+            {idx < 2 && (
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: 114, flexShrink: 0, width: 28 }}>
+                <svg width="22" height="14" viewBox="0 0 22 14" fill="none">
+                  <path d="M1 7 H17" stroke={`${color}70`} strokeWidth="1.8" strokeLinecap="round" />
+                  <path d="M11 1 L17 7 L11 13" stroke={`${color}70`} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </div>
+            )}
+          </Fragment>
+        ))}
+      </div>
+
+      <div style={{ width: '100%', maxWidth: 480, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <Btn onClick={() => setStarted(true)}>Iniciar</Btn>
+        <Btn variant="ghost" onClick={onDone}>Elegir otro método</Btn>
+      </div>
+    </div>
+  );
+
   return (
     <CenteredFlow>
       <Counter current={step + 1} total={POSTURAL_STEPS.length} color={color} />
@@ -1374,8 +1733,86 @@ const EMOTION_FACE: Record<string, string> = {
   'Enojo': 'enojo', 'Confusión': 'confusion', 'Tristeza': 'tristeza', 'No sé': 'nose',
 };
 
+const ETIKETA_TUTO = [
+  { n: 1, step: 1 as const, label: 'MIRA',     title: 'Una lista de palabras.',  body: 'Vas a ver opciones. No tienes que buscar la exacta.' },
+  { n: 2, step: 2 as const, label: 'ELIGE',    title: 'Elige la más cercana.',   body: 'La que más se parezca a lo que sientes ahora.' },
+  { n: 3, step: 3 as const, label: 'NÓMBRALA', title: 'Eso es todo.',            body: 'Poner nombre baja la intensidad. El cerebro procesa lo que tiene nombre.' },
+] as const;
+
+function EtiketaStepIllustration({ step, color }: { step: 1 | 2 | 3; color: string }) {
+  const words = ['Miedo', 'Vergüenza', 'Enojo', 'Tristeza'];
+  if (step === 1) return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5, width: 118 }}>
+      {words.map(w => (
+        <div key={w} style={{
+          background: C.card, border: `1px solid ${C.bdr}`, borderRadius: 10,
+          padding: '8px 6px', fontFamily: 'var(--font-display)',
+          fontSize: 11, color: C.text, textAlign: 'center',
+        }}>{w}</div>
+      ))}
+    </div>
+  );
+  if (step === 2) return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5, width: 118 }}>
+      {words.map((w, i) => (
+        <div key={w} style={{
+          background: i === 0 ? `${color}22` : C.card,
+          border: `1px solid ${i === 0 ? color : C.bdr}`, borderRadius: 10,
+          padding: '8px 6px', fontFamily: 'var(--font-display)',
+          fontSize: 11, color: i === 0 ? color : C.text,
+          fontWeight: i === 0 ? 600 : 400, textAlign: 'center',
+        }}>{w}</div>
+      ))}
+    </div>
+  );
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, width: 118 }}>
+      <GuideCharacter expression="miedo" color={color} size={78} />
+      <div style={{ fontFamily: 'var(--font-display)', fontSize: 13, color: C.text }}>Miedo.</div>
+    </div>
+  );
+}
+
 function Phase6({ onDone, color }: { onDone: () => void; color: string }) {
+  const [started, setStarted] = useState(false);
   const [picked, setPicked] = useState<string | null>(null);
+
+  if (!started) return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 22, padding: '8px 16px 32px', width: '100%', maxWidth: 700, margin: '0 auto', textAlign: 'center' }}>
+      <FadeKey key="intro" k="intro">
+        <h2 style={titleStyle}>Etiquetado emocional.</h2>
+        <p style={{ ...mutedTextStyle, maxWidth: 460 }}>Vas a ver una lista de palabras y elegir la que más se acerque a lo que sientes ahora. No tiene que ser exacta — solo la más cercana. Ponerle nombre a lo que sientes le dice al cerebro que lo está procesando, y eso solo ya puede bajar un poco la intensidad.</p>
+      </FadeKey>
+      <div style={{ display: 'flex', alignItems: 'flex-start', width: '100%' }}>
+        {ETIKETA_TUTO.map((ts, i) => (
+          <Fragment key={ts.n}>
+            <div style={{ flex: '1 1 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+              <div style={{ width: 30, height: 30, borderRadius: '50%', background: color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, flexShrink: 0 }}>{ts.n}</div>
+              <div style={{ position: 'relative', display: 'grid', placeItems: 'center' }}>
+                <div style={{ position: 'absolute', inset: -20, borderRadius: '50%', background: `radial-gradient(circle, ${color}40 0%, ${color}1a 50%, transparent 72%)`, filter: 'blur(16px)' }} />
+                <EtiketaStepIllustration step={ts.step} color={color} />
+              </div>
+              <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.15em', color, textTransform: 'uppercase', margin: 0 }}>{ts.label}</p>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: C.body, margin: 0, lineHeight: 1.4 }}>{ts.title}</p>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: C.muted, margin: 0, lineHeight: 1.4, maxWidth: 120 }}>{ts.body}</p>
+            </div>
+            {i < 2 && (
+              <div style={{ paddingTop: 90, flexShrink: 0, width: 32, display: 'flex', justifyContent: 'center' }}>
+                <svg width="22" height="14" viewBox="0 0 22 14" fill="none">
+                  <path d="M1 7 H17" stroke={`${color}70`} strokeWidth="1.8" strokeLinecap="round" />
+                  <path d="M11 1 L17 7 L11 13" stroke={`${color}70`} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </div>
+            )}
+          </Fragment>
+        ))}
+      </div>
+      <div style={{ width: '100%', maxWidth: 480, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <Btn onClick={() => setStarted(true)}>Iniciar</Btn>
+        <Btn variant="ghost" onClick={onDone}>Elegir otro método</Btn>
+      </div>
+    </div>
+  );
 
   if (picked) return (
     <CenteredFlow>
@@ -1435,10 +1872,21 @@ const CATEGS = [
 ];
 
 function Phase7({ onDone, color }: { onDone: () => void; color: string }) {
-  const [phase, setPhase] = useState<'pick' | 'input' | 'done'>('pick');
+  const [phase, setPhase] = useState<'intro' | 'pick' | 'input' | 'done'>('intro');
   const [cat, setCat]     = useState<typeof CATEGS[0] | null>(null);
   const [items, setItems] = useState(['', '', '', '', '']);
   const [i, setI]         = useState(0);
+
+  if (phase === 'intro') return (
+    <CenteredFlow>
+      <FadeKey key="intro" k="intro">
+        <h2 style={titleStyle}>Categorías mentales.</h2>
+        <p style={mutedTextStyle}>Vas a elegir una categoría — animales, comidas, países, lo que quieras — y nombrar cinco cosas que pertenezcan a ella. La idea es darle a la parte activa de tu mente una tarea concreta para interrumpir los pensamientos en loop. Puedes escribirlos o solo pensarlos.</p>
+      </FadeKey>
+      <Btn onClick={() => setPhase('pick')}>Iniciar</Btn>
+      <Btn variant="ghost" onClick={onDone}>Elegir otro método</Btn>
+    </CenteredFlow>
+  );
 
   if (phase === 'pick') return (
     <CenteredFlow>
@@ -1503,15 +1951,27 @@ function Phase7({ onDone, color }: { onDone: () => void; color: string }) {
 ═══════════════════════════════════════════════════════ */
 
 function Phase8({ onDone, color }: { onDone: () => void; color: string }) {
+  const [started, setStarted] = useState(false);
   const [n, setN]           = useState(20);
   const [paused, setPaused] = useState(false);
   const STEP_MS = 2000;
 
   useEffect(() => {
-    if (n === 0 || paused) return;
+    if (!started || n === 0 || paused) return;
     const t = setTimeout(() => setN(x => x - 1), STEP_MS);
     return () => clearTimeout(t);
   }, [n, paused]);
+
+  if (!started) return (
+    <CenteredFlow>
+      <FadeKey key="intro" k="intro">
+        <h2 style={titleStyle}>Conteo hacia atrás.</h2>
+        <p style={mutedTextStyle}>Vas a contar desde 20 hasta 0 siguiendo una barra en pantalla. Cada número ocupa un poco de atención — lo suficiente para darle un respiro a los pensamientos que no paran. Puedes seguir el ritmo de la barra o ir a tu propio paso.</p>
+      </FadeKey>
+      <Btn onClick={() => setStarted(true)}>Iniciar</Btn>
+      <Btn variant="ghost" onClick={onDone}>Elegir otro método</Btn>
+    </CenteredFlow>
+  );
 
   if (n === 0) return (
     <CenteredFlow>
@@ -1621,6 +2081,56 @@ function FishingCharacter({ color, size = 110 }: { color: string; size?: number 
   );
 }
 
+const PESCA_TUTO = [
+  { n: 1, step: 1 as const, label: 'TOCA',     title: 'Toca un pez.',        body: 'Los peces nadan solos. Pulsa el que quieras atrapar.' },
+  { n: 2, step: 2 as const, label: 'LEE',      title: 'Lee su frase.',       body: 'Cada pez lleva un mensaje. Solo ve qué resuena.' },
+  { n: 3, step: 3 as const, label: 'ATRAPA 5', title: 'Quédate con cinco.',  body: 'Cuando hayas atrapado cinco el ejercicio termina.' },
+] as const;
+
+function PescaStepIllustration({ step, color }: { step: 1 | 2 | 3; color: string }) {
+  if (step === 1) return (
+    <div style={{ position: 'relative', width: 118, height: 90, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <Fish color={color} size={86} />
+      <svg width="26" height="26" viewBox="0 0 26 26" style={{ position: 'absolute', right: 4, bottom: 16, overflow: 'visible' }}>
+        <circle cx="13" cy="13" r="4.5" fill={color} opacity="0.9" />
+        <circle cx="13" cy="13" r="4.5" fill="none" stroke={color} strokeWidth="1">
+          <animate attributeName="r" values="4.5;12;4.5" dur="1.8s" repeatCount="indefinite" />
+          <animate attributeName="opacity" values="0.4;0.02;0.4" dur="1.8s" repeatCount="indefinite" />
+        </circle>
+      </svg>
+    </div>
+  );
+  if (step === 2) return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, width: 118 }}>
+      <div style={{
+        background: C.card, border: `1.2px solid ${color}55`, borderRadius: 10,
+        padding: '6px 10px', fontSize: 9.5, color: C.body,
+        fontFamily: 'var(--font-body)', lineHeight: 1.5, textAlign: 'center',
+        width: '100%', boxSizing: 'border-box' as const, position: 'relative',
+      }}>
+        Lo que pasó<br />no es tu culpa.
+        <div style={{
+          position: 'absolute', bottom: -7, left: '50%', transform: 'translateX(-50%)',
+          width: 0, height: 0,
+          borderLeft: '6px solid transparent', borderRight: '6px solid transparent',
+          borderTop: `7px solid ${color}55`,
+        }} />
+      </div>
+      <Fish color={color} size={68} />
+    </div>
+  );
+  return (
+    <div style={{ width: 118, height: 90, display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+        {(['#b89a72','#c4a882','#a8855c'] as string[]).map((c, i) => <Fish key={i} color={c} size={35} />)}
+      </div>
+      <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+        {(['#d4b890','#9a7650'] as string[]).map((c, i) => <Fish key={i} color={c} size={35} />)}
+      </div>
+    </div>
+  );
+}
+
 function PescaScene({ fishList, caughtIds, hookedId, color, onCatch }: {
   fishList: FishDef[]; caughtIds: Set<string>; hookedId: string | null;
   color: string; onCatch: (f: FishDef) => void;
@@ -1716,6 +2226,7 @@ function PescaScene({ fishList, caughtIds, hookedId, color, onCatch }: {
 }
 
 function Phase14({ onDone, color }: { onDone: () => void; color: string }) {
+  const [started, setStarted] = useState(false);
   const totalCatch = 5;
   const fishList = useMemo<FishDef[]>(() => {
     const phrases = shuffle(PESCA_PHRASES);
@@ -1740,6 +2251,43 @@ function Phase14({ onDone, color }: { onDone: () => void; color: string }) {
   }, [hooked]);
 
   const caughtCount = caughtIds.size;
+
+  if (!started) return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 22, padding: '8px 16px 32px', width: '100%', maxWidth: 700, margin: '0 auto', textAlign: 'center' }}>
+      <FadeKey key="intro" k="intro">
+        <h2 style={titleStyle}>Pesca de frases.</h2>
+        <p style={{ ...mutedTextStyle, maxWidth: 460 }}>La pantalla se va a llenar de peces nadando. Cada uno lleva una frase. Toca los que quieras y quédate con las que te sirvan — no tienes que creer todo lo que pesques, solo ver qué resuena. Atrapa cinco.</p>
+      </FadeKey>
+      <div style={{ display: 'flex', alignItems: 'flex-start', width: '100%' }}>
+        {PESCA_TUTO.map((ts, i) => (
+          <Fragment key={ts.n}>
+            <div style={{ flex: '1 1 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+              <div style={{ width: 30, height: 30, borderRadius: '50%', background: color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, flexShrink: 0 }}>{ts.n}</div>
+              <div style={{ position: 'relative', display: 'grid', placeItems: 'center' }}>
+                <div style={{ position: 'absolute', inset: -20, borderRadius: '50%', background: `radial-gradient(circle, ${color}40 0%, ${color}1a 50%, transparent 72%)`, filter: 'blur(16px)' }} />
+                <PescaStepIllustration step={ts.step} color={color} />
+              </div>
+              <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.15em', color, textTransform: 'uppercase', margin: 0 }}>{ts.label}</p>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: C.body, margin: 0, lineHeight: 1.4 }}>{ts.title}</p>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: C.muted, margin: 0, lineHeight: 1.4, maxWidth: 120 }}>{ts.body}</p>
+            </div>
+            {i < 2 && (
+              <div style={{ paddingTop: 90, flexShrink: 0, width: 32, display: 'flex', justifyContent: 'center' }}>
+                <svg width="22" height="14" viewBox="0 0 22 14" fill="none">
+                  <path d="M1 7 H17" stroke={`${color}70`} strokeWidth="1.8" strokeLinecap="round" />
+                  <path d="M11 1 L17 7 L11 13" stroke={`${color}70`} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </div>
+            )}
+          </Fragment>
+        ))}
+      </div>
+      <div style={{ width: '100%', maxWidth: 480, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <Btn onClick={() => setStarted(true)}>Iniciar</Btn>
+        <Btn variant="ghost" onClick={onDone}>Elegir otro método</Btn>
+      </div>
+    </div>
+  );
 
   if (caughtCount >= totalCatch && !showing) {
     return (
@@ -1819,6 +2367,49 @@ function Phase14({ onDone, color }: { onDone: () => void; color: string }) {
   );
 }
 
+/* ── BubblePreview — static illustration for intro ── */
+function BubblePreview({ color }: { color: string }) {
+  return (
+    <svg viewBox="0 0 280 175" width="100%" style={{ maxWidth: 300, overflow: 'visible' }}>
+      {/* Bubble — large left */}
+      <circle cx="58" cy="90" r="46" fill={`${color}20`} stroke={`${color}88`} strokeWidth="1.5" />
+      <ellipse cx="44" cy="73" rx="14" ry="9" fill="rgba(255,255,255,0.52)" transform="rotate(-20 44 73)" />
+      <ellipse cx="70" cy="118" rx="9" ry="5" fill={`${color}15`} transform="rotate(15 70 118)" />
+
+      {/* Bubble — medium center-top */}
+      <circle cx="158" cy="46" r="31" fill={`${color}1c`} stroke={`${color}80`} strokeWidth="1.4" />
+      <ellipse cx="147" cy="34" rx="9" ry="6" fill="rgba(255,255,255,0.48)" transform="rotate(-15 147 34)" />
+
+      {/* Bubble — large right */}
+      <circle cx="220" cy="104" r="38" fill={`${color}24`} stroke={`${color}85`} strokeWidth="1.5" />
+      <ellipse cx="207" cy="86" rx="12" ry="8" fill="rgba(255,255,255,0.50)" transform="rotate(-20 207 86)" />
+
+      {/* Bubble — small bottom */}
+      <circle cx="130" cy="148" r="18" fill={`${color}18`} stroke={`${color}70`} strokeWidth="1.2" />
+      <ellipse cx="123" cy="140" rx="5" ry="4" fill="rgba(255,255,255,0.44)" transform="rotate(-15 123 140)" />
+
+      {/* Popped bubble — center */}
+      <g opacity="0.72">
+        <circle cx="120" cy="88" r="2.8" fill={color} />
+        <line x1="120" y1="88" x2="105" y2="73" stroke={color} strokeWidth="1.7" strokeLinecap="round" />
+        <line x1="120" y1="88" x2="135" y2="73" stroke={color} strokeWidth="1.7" strokeLinecap="round" />
+        <line x1="120" y1="88" x2="104" y2="101" stroke={color} strokeWidth="1.7" strokeLinecap="round" />
+        <line x1="120" y1="88" x2="136" y2="101" stroke={color} strokeWidth="1.7" strokeLinecap="round" />
+        <line x1="120" y1="88" x2="120" y2="69"  stroke={color} strokeWidth="1.7" strokeLinecap="round" />
+        <line x1="120" y1="88" x2="120" y2="107" stroke={color} strokeWidth="1.4" strokeLinecap="round" />
+        <circle cx="102" cy="70" r="3.5" fill={`${color}cc`} />
+        <circle cx="138" cy="70" r="3.5" fill={`${color}cc`} />
+        <circle cx="100" cy="104" r="2.5" fill={`${color}aa`} />
+        <circle cx="140" cy="104" r="2.5" fill={`${color}aa`} />
+        <circle cx="120" cy="62"  r="4"   fill={`${color}bb`} />
+        <circle cx="120" cy="115" r="2"   fill={`${color}99`} />
+        <circle cx="92"  cy="86"  r="2"   fill={`${color}88`} />
+        <circle cx="148" cy="86"  r="2"   fill={`${color}88`} />
+      </g>
+    </svg>
+  );
+}
+
 /* ═══════════════════════════════════════════════════════
    FASE 9 — Burbujas de Calma
 ═══════════════════════════════════════════════════════ */
@@ -1848,14 +2439,14 @@ function pickCell(active: BubbleDef[]) {
   return cands[Math.floor(Math.random() * cands.length)];
 }
 
-function makeBubbleDef(id: string, active: BubbleDef[] = []): BubbleDef {
+function makeBubbleDef(id: string, active: BubbleDef[] = [], sizeMin = 64, sizeRange = 72): BubbleDef {
   const cell = pickCell(active);
   const col = cell % B_COLS, row = Math.floor(cell / B_COLS);
   const colW = (B_X_MAX - B_X_MIN) / B_COLS, rowH = (B_Y_MAX - B_Y_MIN) / B_ROWS;
   const jX = (Math.random() - 0.5) * colW * 0.65, jY = (Math.random() - 0.5) * rowH * 0.65;
   return {
     id, cell,
-    size: 64 + Math.random() * 72,
+    size: sizeMin + Math.random() * sizeRange,
     startX: B_X_MIN + colW * (col + 0.5) + jX,
     startY: B_Y_MIN + rowH * (row + 0.5) + jY,
     waypoints: Array.from({ length: 4 }, () => ({ x: (Math.random() - 0.5) * 12, y: (Math.random() - 0.5) * 10 })),
@@ -1953,66 +2544,94 @@ function PoppedBurst({ b }: { b: BubbleDef }) {
 }
 
 function Phase9({ onDone }: { onDone: () => void }) {
+  const isMobile = useMediaQuery('(max-width: 480px)');
+  const [started, setStarted] = useState(false);
   const [bubbles, setBubbles] = useState<BubbleDef[]>([]);
   const [showExit, setShowExit] = useState(false);
   const idRef = useRef(100);
+  const maxAliveRef = useRef(20);
+  useEffect(() => { maxAliveRef.current = isMobile ? 11 : 20; }, [isMobile]);
 
   useEffect(() => {
+    if (!started) return;
+    const sMin = isMobile ? 36 : 64, sRng = isMobile ? 40 : 72;
     const arr: BubbleDef[] = [];
-    for (let i = 0; i < 9; i++) arr.push(makeBubbleDef('b' + (idRef.current++) + i, arr));
+    for (let i = 0; i < (isMobile ? 6 : 9); i++) arr.push(makeBubbleDef('b' + (idRef.current++) + i, arr, sMin, sRng));
     setBubbles(arr);
     const t = setTimeout(() => setShowExit(true), 2000);
     return () => clearTimeout(t);
-  }, []);
+  }, [started]);
 
   useEffect(() => {
+    if (!started) return;
+    const sMin = isMobile ? 36 : 64, sRng = isMobile ? 40 : 72;
     let alive = true;
     let tt: ReturnType<typeof setTimeout>;
     const tick = () => {
       if (!alive) return;
       setBubbles(prev => {
         const active = prev.filter(b => !b.popping);
-        if (active.length >= 20) return prev;
-        return [...prev, makeBubbleDef('b' + (idRef.current++), prev)];
+        if (active.length >= maxAliveRef.current) return prev;
+        return [...prev, makeBubbleDef('b' + (idRef.current++), prev, sMin, sRng)];
       });
       tt = setTimeout(tick, 700 + Math.random() * 900);
     };
     tt = setTimeout(tick, 1200);
     return () => { alive = false; clearTimeout(tt); };
-  }, []);
+  }, [started]);
 
   useEffect(() => {
+    if (!started) return;
     const gc = setInterval(() => {
       setBubbles(prev => prev.filter(b => !b.popping || !b.poppedAt || (Date.now() - b.poppedAt) < 600));
     }, 800);
     return () => clearInterval(gc);
-  }, []);
+  }, [started]);
 
   const pop = (id: string) => {
     buzz(10);
     setBubbles(prev => prev.map(b => b.id === id ? { ...b, popping: true, poppedAt: Date.now() } : b));
   };
 
+  if (!started) return (
+    <CenteredFlow>
+      <FadeKey key="intro" k="intro">
+        <h2 style={titleStyle}>Burbujas de calma.</h2>
+        <p style={mutedTextStyle}>La pantalla se va a llenar de burbujas. Tócalas para soltarlas. No hay objetivo ni tiempo límite — solo tus dedos y las burbujas. Quédate el tiempo que necesites.</p>
+      </FadeKey>
+      <BubblePreview color="#89afd1" />
+      <Btn onClick={() => setStarted(true)}>Iniciar</Btn>
+      <Btn variant="ghost" onClick={onDone}>Elegir otro método</Btn>
+    </CenteredFlow>
+  );
+
   return (
     <div style={{ position: 'fixed', inset: 0, top: 56, background: C.bg, zIndex: 4, overflow: 'hidden' }}>
       {bubbles.map(b => <BubbleEl key={b.id} b={b} onPop={() => pop(b.id)} />)}
       {showExit && (
-        <button
-          onClick={onDone}
-          style={{
-            position: 'absolute', bottom: 36, left: '50%', transform: 'translateX(-50%)',
-            padding: '13px 26px', borderRadius: 999,
-            background: 'rgba(245,242,238,0.88)', backdropFilter: 'blur(10px)',
-            border: '1px solid rgba(44,44,42,0.14)',
-            color: C.text, fontSize: 14, fontWeight: 500,
-            fontFamily: 'var(--font-body)', cursor: 'pointer',
-            boxShadow: '0 4px 24px rgba(44,44,42,0.08)',
-            animation: 'ancla-fade-up .6s cubic-bezier(.4,0,.2,1) both',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          Ya fue suficiente
-        </button>
+        <div style={{
+          position: 'absolute',
+          bottom: isMobile ? 'calc(env(safe-area-inset-bottom, 0px) + 24px)' : 36,
+          left: 0, right: 0,
+          display: 'flex', justifyContent: 'center',
+          animation: 'ancla-fade-up .6s cubic-bezier(.4,0,.2,1) both',
+          pointerEvents: 'none',
+        }}>
+          <button
+            onClick={onDone}
+            style={{
+              padding: isMobile ? '15px 32px' : '13px 26px', borderRadius: 999,
+              background: 'rgba(245,242,238,0.88)', backdropFilter: 'blur(10px)',
+              border: '1px solid rgba(44,44,42,0.14)',
+              color: C.text, fontSize: isMobile ? 15 : 14, fontWeight: 500,
+              fontFamily: 'var(--font-body)', cursor: 'pointer',
+              boxShadow: '0 4px 24px rgba(44,44,42,0.08)',
+              whiteSpace: 'nowrap', pointerEvents: 'auto',
+            }}
+          >
+            Ya fue suficiente
+          </button>
+        </div>
       )}
     </div>
   );
@@ -2030,9 +2649,40 @@ const FRASES_ANCLAJE = [
   'Ahora puedo ir paso a paso.',
 ];
 
+function FrasesPreview({ color }: { color: string }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'center', padding: '4px 8px' }}>
+      <div style={{ flexShrink: 0 }}>
+        <GuideCharacter expression="hello" color={color} size={90} />
+      </div>
+      <div style={{ position: 'relative', flexShrink: 0 }}>
+        <div style={{ position: 'absolute', left: -8, top: '50%', transform: 'translateY(-50%)', width: 0, height: 0, borderTop: '7px solid transparent', borderBottom: '7px solid transparent', borderRight: `8px solid ${C.bdr}` }} />
+        <div style={{ position: 'absolute', left: -6, top: '50%', transform: 'translateY(-50%)', width: 0, height: 0, borderTop: '7px solid transparent', borderBottom: '7px solid transparent', borderRight: `8px solid ${C.card}` }} />
+        <div style={{ background: C.card, border: `1px solid ${C.bdr}`, borderRadius: 14, padding: '12px 16px', fontFamily: 'var(--font-display)', fontSize: 15, color: C.text, lineHeight: 1.4, maxWidth: 170 }}>
+          "Estoy aquí."
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Phase10({ onDone, color }: { onDone: () => void; color: string }) {
+  const [started, setStarted] = useState(false);
   const [i, setI] = useState(0);
   const last = i === FRASES_ANCLAJE.length - 1;
+
+  if (!started) return (
+    <CenteredFlow>
+      <FadeKey key="intro" k="intro">
+        <h2 style={titleStyle}>Frases de anclaje.</h2>
+        <p style={mutedTextStyle}>Vas a leer cinco frases cortas, una a la vez. No tienes que creerlas ni analizarlas — solo léelas despacio y deja que cada una esté un momento antes de pasar a la siguiente. Sirven cuando sientes que no estás del todo aquí o que lo que pasa no parece real.</p>
+      </FadeKey>
+      <FrasesPreview color={color} />
+      <Btn onClick={() => setStarted(true)}>Iniciar</Btn>
+      <Btn variant="ghost" onClick={onDone}>Elegir otro método</Btn>
+    </CenteredFlow>
+  );
+
   return (
     <CenteredFlow>
       <Counter current={i + 1} total={FRASES_ANCLAJE.length} color={color} />
@@ -2066,10 +2716,44 @@ const TEXT_TAG_MESSAGES: Record<string, string> = {
   'Ligero': 'Lo ligero también puede sostenerse. Como tú, aunque no siempre lo sientas.',
 };
 
+function PastoPreview({ color }: { color: string }) {
+  const base = 68;
+  const blades = [
+    { x: 10, h: 30, c: -4 }, { x: 24, h: 44, c: 5 }, { x: 38, h: 26, c: -3 },
+    { x: 52, h: 50, c: 6  }, { x: 66, h: 36, c: -5 }, { x: 80, h: 46, c: 4  },
+    { x: 94, h: 28, c: -2 }, { x: 108, h: 48, c: 5 }, { x: 122, h: 34, c: -6 },
+    { x: 136, h: 40, c: 3  }, { x: 150, h: 22, c: -3 },
+  ];
+  return (
+    <svg viewBox="0 0 160 72" width="100%" style={{ maxWidth: 260 }}>
+      <line x1="0" y1={base} x2="160" y2={base} stroke={`${color}35`} strokeWidth="1.2" />
+      {blades.map((b, i) => (
+        <path key={i}
+          d={`M ${b.x} ${base} Q ${b.x + b.c * 0.6} ${base - b.h * 0.55} ${b.x + b.c} ${base - b.h}`}
+          stroke={color} strokeWidth="2.2" strokeLinecap="round" fill="none"
+          opacity={0.5 + (i % 4) * 0.12}
+        />
+      ))}
+    </svg>
+  );
+}
+
 function Phase11({ onDone, color }: { onDone: () => void; color: string }) {
-  const [phase, setPhase] = useState<'steps' | 'tags' | 'done'>('steps');
+  const [phase, setPhase] = useState<'intro' | 'steps' | 'tags' | 'done'>('intro');
   const [step, setStep]   = useState(0);
   const [tags, setTags]   = useState<string[]>([]);
+
+  if (phase === 'intro') return (
+    <CenteredFlow>
+      <FadeKey key="intro" k="intro">
+        <h2 style={titleStyle}>Texturas de anclaje.</h2>
+        <p style={mutedTextStyle}>Vas a buscar un objeto cercano — puede ser cualquier cosa: tu ropa, una taza, el celular — y explorarlo con los dedos prestando atención a cómo se siente. Temperatura, peso, textura. El tacto es una de las formas más directas de traer la mente de vuelta al cuerpo.</p>
+      </FadeKey>
+      <PastoPreview color={color} />
+      <Btn onClick={() => setPhase('steps')}>Iniciar</Btn>
+      <Btn variant="ghost" onClick={onDone}>Elegir otro método</Btn>
+    </CenteredFlow>
+  );
 
   if (phase === 'steps') {
     const last = step === TEXT_STEPS.length - 1;
@@ -2129,9 +2813,38 @@ const OLOR_STEPS = [
   'Repite una vez más, sin prisa.',
 ];
 
+function NarizPreview({ color }: { color: string }) {
+  return (
+    <svg viewBox="0 0 120 75" width="100%" style={{ maxWidth: 200, overflow: 'visible' }}>
+      {/* nose profile: bridge → bump → tip → underside */}
+      <path d="M 38 8 Q 40 28 62 44 Q 68 50 64 58 Q 60 65 48 66 Q 38 66 36 60"
+        stroke="#2C2C2A" strokeWidth="2.2" strokeLinecap="round" fill="none" opacity="0.55" />
+      {/* nostril hook */}
+      <path d="M 36 60 Q 31 55 37 50"
+        stroke="#2C2C2A" strokeWidth="1.6" strokeLinecap="round" fill="none" opacity="0.38" />
+      {/* scent wavy lines from tip */}
+      <path d="M 72 38 Q 83 30 77 22 Q 71 14 82 7" stroke={color} strokeWidth="1.9" strokeLinecap="round" fill="none" opacity="0.85" />
+      <path d="M 77 47 Q 88 39 82 31 Q 76 23 87 16" stroke={color} strokeWidth="1.9" strokeLinecap="round" fill="none" opacity="0.85" />
+      <path d="M 75 56 Q 86 48 80 40 Q 74 32 85 25" stroke={color} strokeWidth="1.9" strokeLinecap="round" fill="none" opacity="0.85" />
+    </svg>
+  );
+}
+
 function Phase12({ onDone, onGoToFase }: { onDone: () => void; onGoToFase: (f: string) => void }) {
-  const [phase, setPhase] = useState<'intro' | 'steps' | 'fallback' | 'done'>('intro');
+  const [phase, setPhase] = useState<'welcome' | 'intro' | 'steps' | 'fallback' | 'done'>('welcome');
   const [step, setStep]   = useState(0);
+
+  if (phase === 'welcome') return (
+    <CenteredFlow>
+      <FadeKey key="welcome" k="welcome">
+        <h2 style={titleStyle}>Olores de anclaje.</h2>
+        <p style={mutedTextStyle}>Un olor conocido activa la memoria y ancla la atención al presente casi de inmediato. Puede ser cualquier cosa que tengas cerca: una bebida, tu ropa, una crema, algo de comer. Te vamos a guiar para usarlo.</p>
+      </FadeKey>
+      <NarizPreview color="#5e7855" />
+      <Btn onClick={() => setPhase('intro')}>Iniciar</Btn>
+      <Btn variant="ghost" onClick={onDone}>Elegir otro método</Btn>
+    </CenteredFlow>
+  );
 
   if (phase === 'intro') return (
     <CenteredFlow>
@@ -2182,11 +2895,11 @@ function Phase12({ onDone, onGoToFase }: { onDone: () => void; onGoToFase: (f: s
 
 type TensionPhase = 'inhale' | 'tight' | 'release' | 'exhale';
 
-const TENSION_SEQ: { main: string; ms: number; phase: TensionPhase; vibe: number | number[] | null }[] = [
-  { main: 'Inhala profundo.',    ms: 3000, phase: 'inhale',  vibe: null        },
-  { main: 'Aprieta los puños.',  ms: 5000, phase: 'tight',   vibe: [60, 40, 60] },
-  { main: 'Afloja las manos.',   ms: 1200, phase: 'release', vibe: 25          },
-  { main: 'Exhala lento.',       ms: 5500, phase: 'exhale',  vibe: null        },
+const TENSION_SEQ: { main: string; hint: string; ms: number; phase: TensionPhase; vibe: number | number[] | null }[] = [
+  { main: 'Inhala profundo.',                     hint: 'Llena bien el pecho.',                           ms: 3000, phase: 'inhale',  vibe: null         },
+  { main: 'Aprieta los puños. Aguanta el aire.',  hint: 'Aprieta fuerte, pero nunca hasta sentir dolor.', ms: 5000, phase: 'tight',   vibe: [60, 40, 60] },
+  { main: 'Suelta todo de golpe.',                hint: 'Manos y aire al mismo tiempo.',                  ms: 1200, phase: 'release', vibe: 25           },
+  { main: 'Exhala lento.',                        hint: 'Deja que el cuerpo se afloje.',                  ms: 5500, phase: 'exhale',  vibe: null         },
 ];
 
 function HeadFace({ phase, color }: { phase: TensionPhase; color: string }) {
@@ -2329,6 +3042,12 @@ function CharacterStage({ phase, color }: { phase: TensionPhase; color: string }
   );
 }
 
+const TENSION_TUTO: { n: number; label: string; phase: TensionPhase; title: string; body: string }[] = [
+  { n: 1, label: 'INHALA',  phase: 'inhale',  title: 'Inhala profundo.',          body: 'Llena bien el pecho.' },
+  { n: 2, label: 'APRIETA', phase: 'tight',   title: 'Aprieta. Aguanta el aire.', body: 'Fuerte, pero sin llegar al dolor.' },
+  { n: 3, label: 'SUELTA',  phase: 'release', title: 'Suelta todo de golpe.',     body: 'Manos y aire al mismo tiempo.' },
+];
+
 function Phase13({ onDone, color }: { onDone: () => void; color: string }) {
   const [state, setState] = useState<'intro' | 'active' | 'done'>('intro');
   const [step, setStep]   = useState(0);
@@ -2348,14 +3067,56 @@ function Phase13({ onDone, color }: { onDone: () => void; color: string }) {
   }, [state, step, rep]);
 
   if (state === 'intro') return (
-    <CenteredFlow>
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
+      gap: 22, padding: '8px 16px 32px',
+      width: '100%', maxWidth: 700, margin: '0 auto', textAlign: 'center',
+    }}>
       <FadeKey key="intro" k="intro">
         <h2 style={titleStyle}>Tensión y liberación.</h2>
-        <p style={mutedTextStyle}>Vamos a apretar los puños fuerte y luego soltar. Tres veces. Aprieta fuerte, pero nunca hasta sentir dolor.</p>
+        <p style={{ ...mutedTextStyle, maxWidth: 460 }}>Vas a inhalar profundo, apretar los puños con fuerza mientras aguantas el aire, y luego soltar todo de golpe — manos y aire al mismo tiempo. La descarga física ayuda cuando sientes que el cuerpo tiene demasiado adentro. Tres rondas. Aprieta fuerte, pero nunca hasta sentir dolor.</p>
       </FadeKey>
-      <Btn onClick={() => setState('active')}>Iniciar</Btn>
-      <Btn variant="ghost" onClick={onDone}>Elegir otro método</Btn>
-    </CenteredFlow>
+
+      <div style={{ display: 'flex', alignItems: 'flex-start', width: '100%' }}>
+        {TENSION_TUTO.map((ts, idx) => (
+          <Fragment key={ts.n}>
+            <div style={{ flex: '1 1 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+              <div style={{
+                width: 30, height: 30, borderRadius: '50%', background: color,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: '#F5F2EE', fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 700,
+                boxShadow: `0 3px 12px ${color}44`, flexShrink: 0,
+              }}>
+                {ts.n}
+              </div>
+              <CharacterStage phase={ts.phase} color={color} />
+              <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.15em', color, margin: 0, textAlign: 'center' }}>
+                {ts.label}
+              </p>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: C.body, margin: '0', textAlign: 'center', lineHeight: 1.4, fontWeight: 500 }}>
+                {ts.title}
+              </p>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 11.5, color: C.faint, margin: 0, textAlign: 'center', lineHeight: 1.4 }}>
+                {ts.body}
+              </p>
+            </div>
+            {idx < 2 && (
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: 80, flexShrink: 0, width: 28 }}>
+                <svg width="22" height="14" viewBox="0 0 22 14" fill="none">
+                  <path d="M1 7 H17" stroke={`${color}70`} strokeWidth="1.8" strokeLinecap="round" />
+                  <path d="M11 1 L17 7 L11 13" stroke={`${color}70`} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </div>
+            )}
+          </Fragment>
+        ))}
+      </div>
+
+      <div style={{ width: '100%', maxWidth: 480, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <Btn onClick={() => setState('active')}>Iniciar</Btn>
+        <Btn variant="ghost" onClick={onDone}>Elegir otro método</Btn>
+      </div>
+    </div>
   );
 
   if (state === 'done') return (
@@ -2379,9 +3140,11 @@ function Phase13({ onDone, color }: { onDone: () => void; color: string }) {
         <div style={{ height: 2, background: C.bdr, borderRadius: 2, overflow: 'hidden' }}>
           <div key={`bar-${step}-${rep}`} style={{ height: '100%', background: color, transformOrigin: 'left center', animation: `ancla-bar ${cur.ms}ms linear forwards` }} />
         </div>
-        <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: C.faint, marginTop: 14, textAlign: 'center' }}>
-          Aprieta fuerte, pero nunca hasta sentir dolor.
-        </p>
+        {cur.hint && (
+          <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: C.faint, marginTop: 14, textAlign: 'center' }}>
+            {cur.hint}
+          </p>
+        )}
       </div>
       <Btn variant="quiet" onClick={onDone}>Si esto no se siente bien, elegir otro método</Btn>
     </CenteredFlow>
@@ -2537,7 +3300,7 @@ function SelectionView({ isMobile, router }: { isMobile: boolean; router: Return
       <div style={{
         marginTop: 48, padding: '16px 20px', borderRadius: 16,
         background: 'rgba(167,199,231,0.10)', border: '1px solid rgba(167,199,231,0.30)',
-        maxWidth: 540,
+        maxWidth: 540, marginLeft: 'auto', marginRight: 'auto',
       }}>
         <p style={{ fontFamily: 'var(--font-body)', fontSize: 14.5, color: C.body, lineHeight: 1.65, margin: 0 }}>
           Si en este momento te sientes en crisis o no puedes usar estas herramientas,{' '}
@@ -2582,7 +3345,7 @@ type FaseNum = 1|2|3|4|5|6|7|8|9|10|11|12|13|14;
 
 function PhaseView({ fase, router, isMobile }: { fase: FaseNum; router: ReturnType<typeof useRouter>; isMobile: boolean }) {
   const m = PHASE_META[fase];
-  const handleDone = () => router.push('/joven/regulacion');
+  const handleDone = () => router.replace('/joven/regulacion');
 
   return (
     <>
@@ -2616,7 +3379,7 @@ function PhaseView({ fase, router, isMobile }: { fase: FaseNum; router: ReturnTy
           {fase === 9  && <Phase9  onDone={handleDone} />}
           {fase === 10 && <Phase10 onDone={handleDone} color={m.color} />}
           {fase === 11 && <Phase11 onDone={handleDone} color={m.color} />}
-          {fase === 12 && <Phase12 onDone={handleDone} onGoToFase={f => router.push(`/joven/regulacion?fase=${f}`)} />}
+          {fase === 12 && <Phase12 onDone={handleDone} onGoToFase={f => router.replace(`/joven/regulacion?fase=${f}`)} />}
           {fase === 13 && <Phase13 onDone={handleDone} color={m.color} />}
           {fase === 14 && <Phase14 onDone={handleDone} color={m.color} />}
         </motion.div>
@@ -2661,7 +3424,7 @@ function RegulacionInner() {
         position: 'sticky', top: 0, zIndex: 10,
       }}>
         <button
-          onClick={() => fase ? router.push('/joven/regulacion') : router.back()}
+          onClick={() => fase ? router.replace('/joven/regulacion') : router.back()}
           style={{
             display: 'flex', alignItems: 'center', gap: 5,
             background: 'none', border: 'none', cursor: 'pointer',
