@@ -2200,9 +2200,8 @@ function PescaScene({ fishList, caughtIds, hookedId, color, onCatch }: {
             <div style={{
               position: 'relative', width: '100%', height: '100%',
               animation: hooked
-                ? 'ancla-fish-hooked 1.1s cubic-bezier(.34,1.56,.64,1) forwards'
-                : `ancla-fish-swim-${f.dir} ${f.dur}s linear infinite`,
-              animationDelay: hooked ? '0s' : `${f.delay}s`,
+                ? 'ancla-fish-hooked 1.1s cubic-bezier(.34,1.56,.64,1) 0s forwards'
+                : `ancla-fish-swim-${f.dir} ${f.dur}s linear ${f.delay}s infinite`,
               willChange: 'transform',
             }}>
               <button
